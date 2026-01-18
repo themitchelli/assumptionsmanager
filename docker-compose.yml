@@ -3,9 +3,30 @@ services:
     build: ./backend
     container_name: assumptions-backend
     restart: unless-stopped
+    environment:
+      - DATABASE_URL=postgresql://assumptions:assumptions@db:5432/assumptions
+    depends_on:
+      - db
+    networks:
+      - web
+
+  db:
+    image: postgres:16-alpine
+    container_name: assumptions-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=assumptions
+      - POSTGRES_PASSWORD=assumptions
+      - POSTGRES_DB=assumptions
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - web
 
 networks:
   web:
     external: true
+
+volumes:
+  postgres_data:
