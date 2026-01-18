@@ -1,0 +1,11 @@
+services:
+  backend:
+    build: ./backend
+    container_name: assumptions-backend
+    restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
