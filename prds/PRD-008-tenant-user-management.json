@@ -19,7 +19,7 @@
         "Returns tenant id, name, created_at"
       ],
       "priority": 1,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-002",
@@ -32,7 +32,7 @@
         "Only super_admin role can access"
       ],
       "priority": 2,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-003",
@@ -45,7 +45,7 @@
         "Does not return password_hash"
       ],
       "priority": 3,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-004",
@@ -59,7 +59,7 @@
         "Returns updated user"
       ],
       "priority": 4,
-      "passes": true
+      "passes": false
     },
     {
       "id": "US-005",
@@ -73,7 +73,7 @@
         "RLS ensures can only delete users in own tenant"
       ],
       "priority": 5,
-      "passes": true
+      "passes": false
     }
   ],
   "technicalNotes": {

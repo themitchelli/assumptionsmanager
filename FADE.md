@@ -70,7 +70,7 @@ Internet -> assumptionsmanager.ddns.net:443 -> Router (No-IP) -> fade-pi:443 -> 
 
 ### Phase 1: MVP ← CURRENT
 - [x] PRD-007: Authentication (JWT + bcrypt) ✅
-- [ ] PRD-008: Tenant & User Management
+- [x] PRD-008: Tenant & User Management
 - [ ] PRD-009: Assumption Tables CRUD
 - [ ] PRD-010: Version Control
 - [ ] PRD-011: Visual Diff

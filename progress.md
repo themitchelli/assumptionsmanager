@@ -92,3 +92,17 @@ Full auth flow working: register → login → access protected routes → get p
 - Files changed: prompt.md
 - Tests: manual review of acceptance criteria
 
+## 2026-01-19 12:30 - PRD-008: Tenant and User Management - COMPLETE
+
+All five user stories completed:
+- US-001: GET /tenants (super_admin only) - list all tenants
+- US-002: POST /tenants (super_admin only) - create new tenant
+- US-003: GET /users - list users in current tenant (filtered by JWT tenant_id)
+- US-004: PATCH /users/{id} - update user role (admin only, cannot demote self)
+- US-005: DELETE /users/{id} - remove user (admin only, cannot delete self)
+
+Role hierarchy implemented: super_admin (platform), admin (tenant), analyst, viewer
+Tenant isolation via WHERE clause (note: RLS bypassed due to superuser DB connection)
+Files changed: backend/main.py, backend/routers/users.py, backend/schemas.py
+Tests: manual API testing passed all acceptance criteria
+

@@ -33,3 +33,10 @@ Only add learnings that are:
 **Learning:** Wrap endpoint logic in try/except and return the actual exception message in the 500 detail field. This helps debug issues in deployed environments where you can't easily access container logs.
 **Relevance:** Apply this pattern to other endpoints that might have complex database operations.
 **Files affected:** backend/routers/auth.py
+
+## 2026-01-19 - PostgreSQL superuser bypasses RLS even with FORCE enabled
+
+**Context:** Implementing tenant isolation for GET /users endpoint. RLS policies were configured with FORCE ROW LEVEL SECURITY, but queries still returned all rows.
+**Learning:** PostgreSQL superusers ALWAYS bypass RLS, even when `ALTER TABLE ... FORCE ROW LEVEL SECURITY` is enabled. The `assumptions` database user is a superuser, which means RLS policies have no effect. To properly enforce RLS, the application must connect using a non-superuser role. Current workaround: use WHERE clauses to filter by tenant_id from JWT instead of relying on RLS.
+**Relevance:** Future work requiring strict RLS enforcement needs either: (1) create a non-superuser application role, or (2) continue using WHERE clause filtering. For now, WHERE clause approach works but adds boilerplate to each query.
+**Files affected:** backend/routers/users.py, any future endpoints needing tenant isolation

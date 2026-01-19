@@ -34,3 +34,20 @@ class TokenPayload(BaseModel):
     user_id: UUID
     tenant_id: UUID
     role: str
+
+
+class TenantCreate(BaseModel):
+    name: str
+
+
+class TenantResponse(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserRoleUpdate(BaseModel):
+    role: str
