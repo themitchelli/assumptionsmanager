@@ -17,7 +17,7 @@ jobs:
           mkdir -p ~/apps/assumptions-manager
           cp -r $GITHUB_WORKSPACE/* ~/apps/assumptions-manager/
           cd ~/apps/assumptions-manager
-          docker compose up -d --build
+          docker compose -f docker-compose.prod.yml up -d --build
           docker system prune -f
       
       - name: Health check

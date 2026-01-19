@@ -60,28 +60,80 @@ Internet -> assumptionsmanager.ddns.net:443 -> Router (No-IP) -> fade-pi:443 -> 
 
 ## Development Phases
 
-### Phase 0: Infrastructure (CURRENT)
+### Phase 0: Infrastructure ✅ COMPLETE
 - [x] PRD-001: Pi Hardware Setup
 - [x] PRD-002: Docker + Base Config  
 - [x] PRD-003: Caddy Reverse Proxy + SSL
-- [ ] PRD-004: GitHub Actions CI/CD
-- [ ] PRD-005: Hello World Validation
+- [x] PRD-004: GitHub Actions CI/CD
+- [x] PRD-005: Hello World Validation
+- [x] PRD-006: Database Setup (PostgreSQL running)
 
-### Phase 1: MVP (4 weeks)
-- [ ] Upload CSV assumption tables
-- [ ] Version control with history
-- [ ] Visual diff between versions
-- [ ] Basic approval workflow
-- [ ] Export to CSV
-- [ ] Audit trail
+### Phase 1: MVP ← CURRENT
+- [ ] PRD-007: Authentication (JWT + bcrypt)
+- [ ] PRD-008: Tenant & User Management
+- [ ] PRD-009: Assumption Tables CRUD
+- [ ] PRD-010: Version Control
+- [ ] PRD-011: Visual Diff
+- [ ] PRD-012: Approval Workflow
+- [ ] PRD-013: Export to CSV
 
 ---
 
-## Deployment
+## Development Environment
 
-**Local:** docker compose up --build
+### Prerequisites
 
-**Production:** Push to main -> GitHub Actions -> Auto-deploy to Pi
+- Docker Desktop installed on development machine
+- Verify: `docker --version` and `docker compose version`
+
+### Local Development
+
+```bash
+# Start local stack with hot reload
+docker compose up --build
+
+# API available at: http://localhost:8000
+# PostgreSQL at: localhost:5432
+
+# Test the health endpoint
+curl http://localhost:8000/health
+```
+
+**Hot Reload:** Changes to `backend/` files automatically reload without rebuild.
+
+**Local Database:** PostgreSQL runs on port 5432 with credentials:
+- User: `assumptions`
+- Password: `assumptions`
+- Database: `assumptions`
+
+### Production Deployment
+
+```bash
+# Push to main triggers auto-deploy to Pi
+git push origin main
+```
+
+GitHub Actions uses `docker-compose.prod.yml` which:
+- Connects to Caddy via external 'web' network
+- No exposed ports (Caddy handles routing)
+- No volume mounts (uses built image)
+
+### Workflow
+
+1. **Develop locally:** `docker compose up --build`
+2. **Test at:** `http://localhost:8000`
+3. **Run tests:** (before pushing)
+4. **Deploy:** `git push origin main`
+5. **Verify:** `https://assumptionsmanager.ddns.net/health`
+
+---
+
+## Deployment Files
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.yml` | Local development with hot reload |
+| `docker-compose.prod.yml` | Production on Pi (used by GitHub Actions) |
 
 **Pi Access:** ssh themitchelli@fade-pi
 
