@@ -58,7 +58,7 @@
         "Returns user object without password"
       ],
       "priority": 4,
-      "passes": false
+      "passes": true
     }
   ],
   "technicalNotes": {

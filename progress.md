@@ -65,3 +65,21 @@ For blocked stories, use:
 - Files changed: backend/auth.py, backend/database.py, backend/main.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 10:35 - US-004: Current User Endpoint - COMPLETE
+
+- GET /auth/me endpoint implemented and tested
+- Requires valid JWT authentication
+- Returns user object without password (UserResponse schema)
+- Files changed: backend/routers/auth.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-19 10:35 - PRD-007: Authentication - COMPLETE
+
+All four user stories completed:
+- US-001: User Registration
+- US-002: User Login
+- US-003: Protected Routes
+- US-004: Current User Endpoint
+
+Full auth flow working: register → login → access protected routes → get profile
+
