@@ -105,7 +105,7 @@ async def delete_user(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Delete a user (admin only)"""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Only admin can delete users"
