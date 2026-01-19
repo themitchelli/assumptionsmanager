@@ -138,3 +138,13 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/schemas.py (RowResponse, TableDetailResponse), backend/routers/tables.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 13:28 - PRD-009 US-004: Update table metadata - COMPLETE
+
+- PATCH /tables/{id} endpoint updates metadata fields (name, description, effective_date)
+- Partial updates supported (only provided fields are updated)
+- Does not modify columns or row data
+- Requires analyst or admin role (viewer gets 403)
+- Returns 404 if table not found or not in user's tenant
+- Files changed: backend/schemas.py (TableUpdate), backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+

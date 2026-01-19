@@ -7,7 +7,7 @@ from sqlalchemy import text
 from database import SessionLocal
 from auth import get_current_user, TokenData
 from schemas import (
-    TableCreate, TableResponse, TableListResponse, TableDetailResponse,
+    TableCreate, TableUpdate, TableResponse, TableListResponse, TableDetailResponse,
     ColumnResponse, RowResponse
 )
 
@@ -160,6 +160,95 @@ async def get_table(
                 updated_at=table_row[7],
                 columns=columns,
                 rows=rows
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{table_id}", response_model=TableListResponse)
+async def update_table(
+    table_id: UUID,
+    update: TableUpdate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Update table metadata (name, description, effective_date)"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can update tables"
+        )
+
+    # Validate effective_date format if provided
+    effective_date_value = None
+    if update.effective_date is not None:
+        try:
+            effective_date_value = date.fromisoformat(update.effective_date)
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid effective_date format. Use YYYY-MM-DD"
+            )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Check table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id, name, description, effective_date, created_by, created_at
+                    FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            existing = result.fetchone()
+
+            if not existing:
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Build dynamic update query
+            updates = []
+            params = {"table_id": str(table_id)}
+
+            if update.name is not None:
+                updates.append("name = :name")
+                params["name"] = update.name
+            if update.description is not None:
+                updates.append("description = :description")
+                params["description"] = update.description
+            if update.effective_date is not None:
+                updates.append("effective_date = :effective_date")
+                params["effective_date"] = effective_date_value
+
+            if not updates:
+                # No updates provided, return existing
+                return TableListResponse(
+                    id=existing[0],
+                    name=existing[1],
+                    description=existing[2],
+                    effective_date=str(existing[3]) if existing[3] else None,
+                    created_by=existing[4],
+                    created_at=existing[5]
+                )
+
+            updates.append("updated_at = NOW()")
+            update_sql = f"UPDATE assumption_tables SET {', '.join(updates)} WHERE id = :table_id RETURNING id, name, description, effective_date, created_by, created_at"
+
+            result = db.execute(text(update_sql), params)
+            row = result.fetchone()
+            db.commit()
+
+            return TableListResponse(
+                id=row[0],
+                name=row[1],
+                description=row[2],
+                effective_date=str(row[3]) if row[3] else None,
+                created_by=row[4],
+                created_at=row[5]
             )
         finally:
             db.close()

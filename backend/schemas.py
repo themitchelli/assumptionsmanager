@@ -79,6 +79,12 @@ class TableCreate(BaseModel):
     columns: list[ColumnDefinition] = []
 
 
+class TableUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    effective_date: str | None = None  # ISO date string YYYY-MM-DD
+
+
 class TableResponse(BaseModel):
     id: UUID
     tenant_id: UUID
