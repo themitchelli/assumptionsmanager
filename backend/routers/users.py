@@ -46,7 +46,7 @@ async def update_user_role(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Update a user's role (admin only)"""
-    if current_user.role != "admin":
+    if current_user.role not in ("admin", "super_admin"):
         raise HTTPException(
             status_code=403,
             detail="Only admin can update user roles"
