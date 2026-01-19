@@ -55,3 +55,13 @@ For blocked stories, use:
 - Files changed: backend/routers/auth.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 10:28 - US-003: Protected Routes - COMPLETE
+
+- JWT authentication dependency (get_current_user) implemented
+- TokenData dataclass for typed token payload
+- Invalid/expired tokens return 401 Unauthorized
+- /tenants endpoint now requires authentication
+- RLS tenant context set via app.current_tenant
+- Files changed: backend/auth.py, backend/database.py, backend/main.py
+- Tests: manual API testing passed all acceptance criteria
+
