@@ -37,3 +37,12 @@ For blocked stories, use:
 - Connected to backend service
 - Ready for schema and RLS policies
 
+## 2026-01-19 10:10 - US-001: User Registration - COMPLETE
+
+- POST /auth/register endpoint implemented and tested
+- Password hashing with bcrypt via passlib
+- Returns user object without password (UserResponse schema)
+- Duplicate email within tenant returns 409 Conflict
+- Files changed: backend/routers/auth.py, backend/requirements.txt
+- Tests: manual API testing passed all acceptance criteria
+

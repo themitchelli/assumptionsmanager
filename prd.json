@@ -20,7 +20,7 @@
         "Rejects duplicate email within same tenant"
       ],
       "priority": 1,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-002",
