@@ -104,3 +104,25 @@ class TableListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class RowResponse(BaseModel):
+    id: UUID
+    row_index: int
+    cells: dict[str, str | int | float | bool | None]  # column_name: value
+
+
+class TableDetailResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    name: str
+    description: str | None
+    effective_date: str | None
+    created_by: UUID | None
+    created_at: datetime
+    updated_at: datetime
+    columns: list[ColumnResponse]
+    rows: list[RowResponse]
+
+    class Config:
+        from_attributes = True

@@ -95,7 +95,7 @@
         "All authenticated roles can access"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",

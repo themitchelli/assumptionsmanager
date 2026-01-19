@@ -128,3 +128,13 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/routers/tables.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 13:20 - PRD-009 US-003: Get assumption table with data - COMPLETE
+
+- GET /tables/{id} endpoint returns full table data including rows and cells
+- Includes metadata, column definitions, all rows with cell values
+- Cell values cast to appropriate Python types based on column data_type (integer, decimal, text, date, boolean)
+- Returns 404 if table not found or not in user's tenant (tenant isolation enforced)
+- All authenticated roles can access (viewer, analyst, admin)
+- Files changed: backend/schemas.py (RowResponse, TableDetailResponse), backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
