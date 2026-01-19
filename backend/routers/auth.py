@@ -7,8 +7,8 @@ from sqlalchemy.exc import IntegrityError
 
 from database import get_db
 from models import User, Tenant
-from schemas import UserCreate, UserResponse
-from auth import hash_password
+from schemas import UserCreate, UserResponse, UserLogin, Token
+from auth import hash_password, verify_password, create_access_token
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -68,4 +68,43 @@ def register_user(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Registration failed: {str(e)}",
+        )
+
+
+@router.post("/login", response_model=Token)
+def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
+    try:
+        # Find user by email
+        user = db.execute(
+            select(User).where(User.email == credentials.email)
+        ).scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        # Verify password
+        if not verify_password(credentials.password, user.password_hash):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid email or password",
+            )
+
+        # Create JWT token
+        access_token = create_access_token(
+            user_id=user.id,
+            tenant_id=user.tenant_id,
+            role=user.role,
+        )
+
+        return Token(access_token=access_token)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Login failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Login failed: {str(e)}",
         )
