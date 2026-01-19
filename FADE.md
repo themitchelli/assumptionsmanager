@@ -69,7 +69,7 @@ Internet -> assumptionsmanager.ddns.net:443 -> Router (No-IP) -> fade-pi:443 -> 
 - [x] PRD-006: Database Setup (PostgreSQL running)
 
 ### Phase 1: MVP ← CURRENT
-- [ ] PRD-007: Authentication (JWT + bcrypt)
+- [x] PRD-007: Authentication (JWT + bcrypt) ✅
 - [ ] PRD-008: Tenant & User Management
 - [ ] PRD-009: Assumption Tables CRUD
 - [ ] PRD-010: Version Control

@@ -116,7 +116,19 @@ Only add learnings that are:
 
 Set `passes: true` for the completed story.
 
-### 4. Signal completion
+### 4. Update FADE.md Transition Plan (if PRD complete)
+
+When ALL stories in prd.json have `passes: true`:
+
+1. Extract the PRD ID from prd.json (e.g., "PRD-008" from the `id` field)
+2. Open FADE.md and find the line containing that PRD ID in the Development Phases section
+3. If found, change `- [ ]` to `- [x]` on that line (mark the checkbox as complete)
+4. If the PRD is not found in FADE.md, skip silently (no error)
+5. Do NOT modify any other content in FADE.md
+
+Example: If prd.json has `"id": "PRD-008"`, find the line `- [ ] PRD-008: Tenant & User Management` and change it to `- [x] PRD-008: Tenant & User Management`
+
+### 5. Signal completion
 
 Output: `<promise>STORY_DONE</promise>`
 
@@ -124,7 +136,7 @@ If ALL stories in prd.json have `passes: true`, output: `<promise>COMPLETE</prom
 
 ## What NOT to do
 
-- Don't modify FADE.md (that's human-curated project context)
+- Don't modify FADE.md (that's human-curated project context) – except for marking PRD checkboxes complete as described in step 4
 - Don't delete entries from progress.md or learned.md (append-only)
 - Don't skip acceptance criteria (every single one must pass)
 - Don't start a new story in the same session (exit, let the loop restart fresh)

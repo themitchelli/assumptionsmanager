@@ -83,3 +83,12 @@ All four user stories completed:
 
 Full auth flow working: register → login → access protected routes → get profile
 
+## 2026-01-19 11:00 - ENH-007 US-001: Mark PRD complete in FADE.md - COMPLETE
+
+- Updated prompt.md Session Exit Protocol with new step 4
+- Step 4 instructs: when all stories pass, mark PRD checkbox complete in FADE.md
+- Handles missing PRD gracefully (skip silently)
+- Updated "What NOT to do" section to clarify FADE.md exception for checkboxes
+- Files changed: prompt.md
+- Tests: manual review of acceptance criteria
+

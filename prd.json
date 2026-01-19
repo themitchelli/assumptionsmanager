@@ -1,76 +1,24 @@
 {
-  "type": "feature",
-  "project": "Assumptions Manager",
-  "id": "PRD-007",
-  "name": "Authentication",
-  "description": "Implement JWT-based authentication with bcrypt password hashing. Users belong to tenants, and authentication sets the tenant context for RLS.",
-  "phase": 1,
-  "dependsOn": [
-    "PRD-006"
-  ],
+  "type": "enhancement",
+  "project": "FADE",
+  "id": "ENH-007",
+  "name": "Update FADE.md Transition Plan on PRD completion",
+  "description": "When all stories in a PRD pass, mark it complete in FADE.md's Transition Plan section",
   "userStories": [
     {
       "id": "US-001",
-      "title": "User Registration",
-      "description": "As a tenant admin, I want to register new users so that team members can access the system",
+      "title": "Mark PRD complete in FADE.md",
+      "description": "On PRD completion, update the Transition Plan checkbox",
       "acceptanceCriteria": [
-        "POST /auth/register accepts email, password, tenant_id",
-        "Password is hashed with bcrypt before storage",
-        "Returns user object (without password)",
-        "Rejects duplicate email within same tenant"
+        "prompt.md Session Exit Protocol updated",
+        "When all stories pass, find PRD in FADE.md Transition Plan",
+        "Change [ ] to [x] for that PRD line",
+        "If PRD not found in Transition Plan, skip silently",
+        "Do not modify any other content in FADE.md"
       ],
       "priority": 1,
       "passes": true
-    },
-    {
-      "id": "US-002",
-      "title": "User Login",
-      "description": "As a user, I want to login with email and password so that I can access my tenant's data",
-      "acceptanceCriteria": [
-        "POST /auth/login accepts email, password",
-        "Validates password against bcrypt hash",
-        "Returns JWT token (24h expiry)",
-        "JWT payload includes: user_id, tenant_id, role"
-      ],
-      "priority": 2,
-      "passes": true
-    },
-    {
-      "id": "US-003",
-      "title": "Protected Routes",
-      "description": "As the system, I want to verify JWT on protected routes so that only authenticated users access data",
-      "acceptanceCriteria": [
-        "Middleware extracts JWT from Authorization header",
-        "Invalid/expired tokens return 401",
-        "Valid tokens set tenant context for RLS",
-        "/tenants endpoint requires authentication"
-      ],
-      "priority": 3,
-      "passes": true
-    },
-    {
-      "id": "US-004",
-      "title": "Current User Endpoint",
-      "description": "As a user, I want to get my profile info so that the frontend knows who I am",
-      "acceptanceCriteria": [
-        "GET /auth/me returns current user",
-        "Requires valid JWT",
-        "Returns user object without password"
-      ],
-      "priority": 4,
-      "passes": true
     }
   ],
-  "technicalNotes": {
-    "jwtLibrary": "python-jose",
-    "passwordHashing": "passlib[bcrypt]",
-    "tokenExpiry": "24 hours",
-    "rlsIntegration": "Set app.current_tenant in database session"
-  },
-  "definitionOfDone": [
-    "All four stories implemented",
-    "Tests pass",
-    "Can register user, login, access protected route",
-    "RLS filters data by tenant from JWT"
-  ]
+  "priority": 2
 }
