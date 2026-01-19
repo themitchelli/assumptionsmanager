@@ -46,3 +46,12 @@ For blocked stories, use:
 - Files changed: backend/routers/auth.py, backend/requirements.txt
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 10:18 - US-002: User Login - COMPLETE
+
+- POST /auth/login endpoint implemented and tested
+- Validates password against bcrypt hash (wrong password returns 401)
+- Returns JWT token with 24h expiry
+- JWT payload contains user_id, tenant_id, role
+- Files changed: backend/routers/auth.py
+- Tests: manual API testing passed all acceptance criteria
+
