@@ -106,3 +106,16 @@ Tenant isolation via WHERE clause (note: RLS bypassed due to superuser DB connec
 Files changed: backend/main.py, backend/routers/users.py, backend/schemas.py
 Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 13:05 - PRD-009 US-001: Create assumption table - COMPLETE
+
+- POST /tables endpoint implemented with full column definitions support
+- Database schema updated: added assumption_columns, assumption_rows, assumption_cells tables
+- Removed unused assumption_versions and assumption_data tables (JSONB approach replaced with normalized model)
+- Added effective_date column to assumption_tables
+- Validates column data_types (text, integer, decimal, date, boolean)
+- Validates effective_date format (YYYY-MM-DD)
+- Requires analyst or admin role (viewer gets 403)
+- tenant_id set automatically from JWT
+- Files changed: backend/init.sql, backend/schemas.py, backend/routers/tables.py, backend/main.py
+- Tests: manual API testing passed all acceptance criteria
+

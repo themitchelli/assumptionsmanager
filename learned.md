@@ -40,3 +40,10 @@ Only add learnings that are:
 **Learning:** PostgreSQL superusers ALWAYS bypass RLS, even when `ALTER TABLE ... FORCE ROW LEVEL SECURITY` is enabled. The `assumptions` database user is a superuser, which means RLS policies have no effect. To properly enforce RLS, the application must connect using a non-superuser role. Current workaround: use WHERE clauses to filter by tenant_id from JWT instead of relying on RLS.
 **Relevance:** Future work requiring strict RLS enforcement needs either: (1) create a non-superuser application role, or (2) continue using WHERE clause filtering. For now, WHERE clause approach works but adds boilerplate to each query.
 **Files affected:** backend/routers/users.py, any future endpoints needing tenant isolation
+
+## 2026-01-19 - Child tables without RLS need JOIN-based tenant isolation
+
+**Context:** Designing the assumption tables data model with parent (assumption_tables) and child tables (assumption_columns, assumption_rows, assumption_cells).
+**Learning:** Child tables that don't have tenant_id columns should NEVER be queried directly. Always access them via JOINs through the parent table (assumption_tables) which has RLS/tenant_id. This ensures tenant isolation is enforced at the parent level. For writes, first verify the parent table belongs to the user's tenant, then insert into child tables using that verified table_id.
+**Relevance:** All future CRUD operations on assumption_columns, assumption_rows, and assumption_cells must go through assumption_tables first. Never query child tables directly without a tenant-verified table_id filter.
+**Files affected:** backend/routers/tables.py, any future endpoints touching assumption data
