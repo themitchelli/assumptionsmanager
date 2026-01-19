@@ -1,6 +1,8 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from uuid import UUID
+
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, DeclarativeBase, Session
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL", "postgresql://assumptions:assumptions@db:5432/assumptions"
@@ -20,3 +22,15 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def get_db_with_tenant(tenant_id: UUID):
+    def _get_db():
+        db = SessionLocal()
+        try:
+            db.execute(text(f"SET app.current_tenant = '{tenant_id}'"))
+            yield db
+        finally:
+            db.close()
+
+    return _get_db

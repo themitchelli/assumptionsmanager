@@ -1,8 +1,9 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import text
 
 from database import engine
 from routers import auth
+from auth import get_current_user, TokenData
 
 app = FastAPI(title="Assumptions Manager", version="0.1.0")
 
@@ -25,10 +26,12 @@ async def health():
 
 
 @app.get("/tenants")
-async def list_tenants():
-    """List all tenants (admin endpoint for demo)"""
+async def list_tenants(current_user: TokenData = Depends(get_current_user)):
+    """List all tenants (requires authentication)"""
     try:
         with engine.connect() as conn:
+            # Set tenant context for RLS
+            conn.execute(text(f"SET app.current_tenant = '{current_user.tenant_id}'"))
             result = conn.execute(text("SELECT id, name, created_at FROM tenants"))
             tenants = [
                 {"id": str(row[0]), "name": row[1], "created_at": str(row[2])}
