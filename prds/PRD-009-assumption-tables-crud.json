@@ -81,7 +81,7 @@
         "All authenticated roles can access (viewer, analyst, admin)"
       ],
       "priority": 2,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-003",

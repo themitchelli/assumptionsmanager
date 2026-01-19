@@ -119,3 +119,12 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/init.sql, backend/schemas.py, backend/routers/tables.py, backend/main.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-19 13:12 - PRD-009 US-002: List assumption tables - COMPLETE
+
+- GET /tables endpoint returns list of tables in current tenant
+- Tenant isolation enforced via WHERE clause filtering by tenant_id from JWT
+- Returns metadata only: id, name, description, effective_date, created_by, created_at
+- All authenticated roles can access (viewer, analyst, admin tested)
+- Files changed: backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+

@@ -6,12 +6,45 @@ from sqlalchemy import text
 
 from database import SessionLocal
 from auth import get_current_user, TokenData
-from schemas import TableCreate, TableResponse, ColumnResponse
+from schemas import TableCreate, TableResponse, TableListResponse, ColumnResponse
 
 router = APIRouter(prefix="/tables", tags=["tables"])
 
 VALID_DATA_TYPES = {"text", "integer", "decimal", "date", "boolean"}
 WRITE_ROLES = {"analyst", "admin"}
+
+
+@router.get("", response_model=list[TableListResponse])
+async def list_tables(current_user: TokenData = Depends(get_current_user)):
+    """List all assumption tables in the current tenant"""
+    try:
+        db = SessionLocal()
+        try:
+            result = db.execute(
+                text("""
+                    SELECT id, name, description, effective_date, created_by, created_at
+                    FROM assumption_tables
+                    WHERE tenant_id = :tenant_id
+                    ORDER BY created_at DESC
+                """),
+                {"tenant_id": str(current_user.tenant_id)}
+            )
+            tables = [
+                TableListResponse(
+                    id=row[0],
+                    name=row[1],
+                    description=row[2],
+                    effective_date=str(row[3]) if row[3] else None,
+                    created_by=row[4],
+                    created_at=row[5]
+                )
+                for row in result
+            ]
+            return tables
+        finally:
+            db.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("", response_model=TableResponse, status_code=201)
