@@ -148,3 +148,24 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/schemas.py (TableUpdate), backend/routers/tables.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 00:05 - PRD-009 US-005: Delete assumption table - COMPLETE
+
+- DELETE /tables/{id} endpoint implemented
+- Returns 204 No Content on successful deletion
+- Requires analyst or admin role (viewer gets 403)
+- Returns 404 if table not found or not in user's tenant (tenant isolation enforced)
+- Cascade deletes all related columns, rows, and cells via FK constraints
+- Files changed: backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 00:06 - PRD-009: Assumption Tables CRUD - COMPLETE
+
+All five user stories completed:
+- US-001: POST /tables - create table with columns
+- US-002: GET /tables - list tables in tenant
+- US-003: GET /tables/{id} - get table with full data
+- US-004: PATCH /tables/{id} - update table metadata
+- US-005: DELETE /tables/{id} - delete table and cascade
+
+Full CRUD operations for assumption tables working with tenant isolation.
+

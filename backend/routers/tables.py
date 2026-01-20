@@ -258,6 +258,50 @@ async def update_table(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/{table_id}", status_code=204)
+async def delete_table(
+    table_id: UUID,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Delete an assumption table and all its data"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can delete tables"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Check table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            existing = result.fetchone()
+
+            if not existing:
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Delete table (cascades to columns, rows, cells)
+            db.execute(
+                text("DELETE FROM assumption_tables WHERE id = :table_id"),
+                {"table_id": str(table_id)}
+            )
+            db.commit()
+
+            return None
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("", response_model=TableResponse, status_code=201)
 async def create_table(
     table: TableCreate,
