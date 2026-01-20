@@ -236,3 +236,23 @@ Files changed:
 
 Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 09:20 - PRD-011: Visual Diff - COMPLETE
+
+All six user stories completed:
+- US-001: GET /tables/{id}/versions/diff?v1=&v2= - formatted diff with version metadata, summary stats
+- US-002: Column-level diff summary with change_count, has_additions, has_removals, has_modifications
+- US-003: Row-level change markers - modified rows include all cells with status: unchanged/modified/added/removed
+- US-004: Column filter query param with validation (returns 400 for invalid column names)
+- US-005: Row range filter (row_start, row_end) - combinable with column filter
+- US-006: GET /tables/{id}/versions/diff/export?format=csv - CSV export with Content-Disposition header
+
+New schemas added: FormattedDiffResponse, VersionMetadata, DiffSummary, ColumnSummary, CellStatus, RowChange
+Extended VersioningService with get_formatted_diff() method including row/column filtering.
+
+Files changed:
+- backend/schemas.py (new visual diff schemas)
+- backend/services/versioning/service.py (get_formatted_diff, filtering methods)
+- backend/routers/versions.py (two new endpoints: /diff and /diff/export)
+
+Tests: manual API testing passed all acceptance criteria
+

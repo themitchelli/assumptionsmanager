@@ -73,7 +73,7 @@ Internet -> assumptionsmanager.ddns.net:443 -> Router (No-IP) -> fade-pi:443 -> 
 - [x] PRD-008: Tenant & User Management
 - [x] PRD-009: Assumption Tables CRUD
 - [x] PRD-010: Version Control
-- [ ] PRD-011: Visual Diff
+- [x] PRD-011: Visual Diff
 - [ ] PRD-012: Approval Workflow
 - [ ] PRD-013: Export to CSV
 

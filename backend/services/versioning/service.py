@@ -374,3 +374,262 @@ class VersioningService:
             cells_map[row_index][column_name] = value
 
         return cells_map
+
+    def get_formatted_diff(
+        self,
+        version1_id: UUID,
+        version2_id: UUID,
+        columns_filter: list[str] | None = None,
+        row_start: int | None = None,
+        row_end: int | None = None
+    ) -> dict:
+        """Get a formatted diff between two versions with full context.
+
+        Returns structured diff with:
+        - version_a/version_b metadata
+        - summary stats
+        - column_summary per column
+        - changes: list of row changes with full cell context
+
+        Args:
+            version1_id: First version (v1/older)
+            version2_id: Second version (v2/newer)
+            columns_filter: Optional list of column names to include
+            row_start: Optional start row index (inclusive)
+            row_end: Optional end row index (inclusive)
+        """
+        # Get version metadata
+        v1_meta = self.get_version(version1_id)
+        v2_meta = self.get_version(version2_id)
+
+        # Get cell data for both versions
+        v1_cells = self._get_version_cells_map(version1_id)
+        v2_cells = self._get_version_cells_map(version2_id)
+
+        # Apply row range filter if specified
+        if row_start is not None or row_end is not None:
+            v1_cells = self._filter_rows(v1_cells, row_start, row_end)
+            v2_cells = self._filter_rows(v2_cells, row_start, row_end)
+
+        # Apply column filter if specified
+        if columns_filter:
+            v1_cells = self._filter_columns(v1_cells, columns_filter)
+            v2_cells = self._filter_columns(v2_cells, columns_filter)
+
+        # Get all row indices
+        v1_rows = set(v1_cells.keys())
+        v2_rows = set(v2_cells.keys())
+
+        added_rows = sorted(v2_rows - v1_rows)
+        deleted_rows = sorted(v1_rows - v2_rows)
+        common_rows = v1_rows & v2_rows
+
+        # Track column-level changes
+        column_changes: dict[str, dict] = {}
+
+        # Get all unique column names
+        all_columns: set[str] = set()
+        for row_data in v1_cells.values():
+            all_columns.update(row_data.keys())
+        for row_data in v2_cells.values():
+            all_columns.update(row_data.keys())
+
+        for col in all_columns:
+            column_changes[col] = {
+                "change_count": 0,
+                "has_additions": False,
+                "has_removals": False,
+                "has_modifications": False
+            }
+
+        # Build changes list
+        changes = []
+
+        # Process added rows
+        for row_idx in added_rows:
+            row_cells = v2_cells[row_idx]
+            cells = []
+            for col_name, value in sorted(row_cells.items()):
+                cells.append({
+                    "column_name": col_name,
+                    "value": value,
+                    "status": "added"
+                })
+                column_changes[col_name]["change_count"] += 1
+                column_changes[col_name]["has_additions"] = True
+
+            changes.append({
+                "type": "row_added",
+                "row_index": row_idx,
+                "cells": cells
+            })
+
+        # Process deleted rows
+        for row_idx in deleted_rows:
+            row_cells = v1_cells[row_idx]
+            cells = []
+            for col_name, value in sorted(row_cells.items()):
+                cells.append({
+                    "column_name": col_name,
+                    "value": value,
+                    "status": "removed"
+                })
+                column_changes[col_name]["change_count"] += 1
+                column_changes[col_name]["has_removals"] = True
+
+            changes.append({
+                "type": "row_removed",
+                "row_index": row_idx,
+                "cells": cells
+            })
+
+        # Process modified rows - include all cells with status markers
+        cells_modified_count = 0
+        for row_idx in sorted(common_rows):
+            v1_row = v1_cells[row_idx]
+            v2_row = v2_cells[row_idx]
+
+            # Get all columns in this row
+            all_row_cols = set(v1_row.keys()) | set(v2_row.keys())
+
+            row_has_changes = False
+            cells = []
+
+            for col_name in sorted(all_row_cols):
+                old_val = v1_row.get(col_name)
+                new_val = v2_row.get(col_name)
+
+                if col_name not in v1_row:
+                    # Cell added in this row
+                    cells.append({
+                        "column_name": col_name,
+                        "new_value": new_val,
+                        "status": "added"
+                    })
+                    row_has_changes = True
+                    cells_modified_count += 1
+                    column_changes[col_name]["change_count"] += 1
+                    column_changes[col_name]["has_additions"] = True
+                elif col_name not in v2_row:
+                    # Cell removed in this row
+                    cells.append({
+                        "column_name": col_name,
+                        "old_value": old_val,
+                        "status": "removed"
+                    })
+                    row_has_changes = True
+                    cells_modified_count += 1
+                    column_changes[col_name]["change_count"] += 1
+                    column_changes[col_name]["has_removals"] = True
+                elif old_val != new_val:
+                    # Cell modified
+                    cells.append({
+                        "column_name": col_name,
+                        "old_value": old_val,
+                        "new_value": new_val,
+                        "status": "modified"
+                    })
+                    row_has_changes = True
+                    cells_modified_count += 1
+                    column_changes[col_name]["change_count"] += 1
+                    column_changes[col_name]["has_modifications"] = True
+                else:
+                    # Cell unchanged - include for context
+                    cells.append({
+                        "column_name": col_name,
+                        "value": new_val,
+                        "status": "unchanged"
+                    })
+
+            if row_has_changes:
+                changes.append({
+                    "type": "row_modified",
+                    "row_index": row_idx,
+                    "cells": cells
+                })
+
+        # Count cells in added rows for total
+        cells_in_added_rows = sum(len(v2_cells[idx]) for idx in added_rows)
+        cells_in_removed_rows = sum(len(v1_cells[idx]) for idx in deleted_rows)
+
+        # Build summary
+        summary = {
+            "total_changes": cells_in_added_rows + cells_in_removed_rows + cells_modified_count,
+            "rows_added": len(added_rows),
+            "rows_removed": len(deleted_rows),
+            "cells_modified": cells_modified_count
+        }
+
+        # Build column summary (only include columns with changes or explicitly filtered)
+        column_summary = []
+        for col_name in sorted(all_columns):
+            col_data = column_changes[col_name]
+            if col_data["change_count"] > 0 or columns_filter:
+                column_summary.append({
+                    "column_name": col_name,
+                    "change_count": col_data["change_count"],
+                    "has_additions": col_data["has_additions"],
+                    "has_removals": col_data["has_removals"],
+                    "has_modifications": col_data["has_modifications"]
+                })
+
+        return {
+            "table_id": v1_meta["table_id"],
+            "version_a": {
+                "id": v1_meta["id"],
+                "version_number": v1_meta["version_number"],
+                "created_by": v1_meta["created_by"],
+                "created_by_name": v1_meta.get("created_by_email"),
+                "created_at": v1_meta["created_at"],
+                "comment": v1_meta["comment"]
+            },
+            "version_b": {
+                "id": v2_meta["id"],
+                "version_number": v2_meta["version_number"],
+                "created_by": v2_meta["created_by"],
+                "created_by_name": v2_meta.get("created_by_email"),
+                "created_at": v2_meta["created_at"],
+                "comment": v2_meta["comment"]
+            },
+            "summary": summary,
+            "column_summary": column_summary,
+            "changes": changes
+        }
+
+    def _filter_rows(
+        self,
+        cells_map: dict[int, dict[str, str | None]],
+        row_start: int | None,
+        row_end: int | None
+    ) -> dict[int, dict[str, str | None]]:
+        """Filter cells map to only include rows in range (inclusive)."""
+        filtered = {}
+        for row_idx, row_data in cells_map.items():
+            if row_start is not None and row_idx < row_start:
+                continue
+            if row_end is not None and row_idx > row_end:
+                continue
+            filtered[row_idx] = row_data
+        return filtered
+
+    def _filter_columns(
+        self,
+        cells_map: dict[int, dict[str, str | None]],
+        columns: list[str]
+    ) -> dict[int, dict[str, str | None]]:
+        """Filter cells map to only include specified columns."""
+        columns_set = set(columns)
+        filtered = {}
+        for row_idx, row_data in cells_map.items():
+            filtered_row = {k: v for k, v in row_data.items() if k in columns_set}
+            if filtered_row:  # Only include rows that have at least one filtered column
+                filtered[row_idx] = filtered_row
+        return filtered
+
+    def get_all_column_names(self, table_id: UUID) -> set[str]:
+        """Get all column names for a table."""
+        result = self.db.execute(
+            text("SELECT name FROM assumption_columns WHERE table_id = :table_id"),
+            {"table_id": str(table_id)}
+        )
+        return {row[0] for row in result}

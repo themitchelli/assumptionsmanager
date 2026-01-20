@@ -217,3 +217,58 @@ class VersionDiffResponse(BaseModel):
     added_rows: list[int]
     deleted_rows: list[int]
     modified_cells: list[ModifiedCellResponse]
+
+
+# Visual Diff schemas (PRD-011)
+
+class VersionMetadata(BaseModel):
+    """Version metadata for diff response"""
+    id: UUID
+    version_number: int
+    created_by: UUID
+    created_by_name: str | None
+    created_at: datetime
+    comment: str
+
+
+class DiffSummary(BaseModel):
+    """Summary statistics for a diff"""
+    total_changes: int
+    rows_added: int
+    rows_removed: int
+    cells_modified: int
+
+
+class ColumnSummary(BaseModel):
+    """Per-column change summary"""
+    column_name: str
+    change_count: int
+    has_additions: bool
+    has_removals: bool
+    has_modifications: bool
+
+
+class CellStatus(BaseModel):
+    """Cell with change status for row-level context"""
+    column_name: str
+    value: str | int | float | bool | None = None
+    old_value: str | int | float | bool | None = None
+    new_value: str | int | float | bool | None = None
+    status: str  # "unchanged", "modified", "added", "removed"
+
+
+class RowChange(BaseModel):
+    """A row change entry in the diff"""
+    type: str  # "row_added", "row_removed", "row_modified"
+    row_index: int
+    cells: list[CellStatus] | dict[str, str | int | float | bool | None]
+
+
+class FormattedDiffResponse(BaseModel):
+    """Full formatted diff response for visual comparison"""
+    table_id: UUID
+    version_a: VersionMetadata
+    version_b: VersionMetadata
+    summary: DiffSummary
+    column_summary: list[ColumnSummary]
+    changes: list[RowChange]
