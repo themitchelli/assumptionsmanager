@@ -5,14 +5,18 @@
 	import { browser } from '$app/environment';
 	import { SkeletonPlaceholder } from 'carbon-components-svelte';
 	import AppShell from '$lib/components/AppShell.svelte';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import { auth, isAdmin, isSuperAdmin } from '$lib/stores/auth';
+	import { toasts } from '$lib/stores/toast';
 
 	// Track if we've completed the auth check
 	let authChecked = false;
 	let authorized = false;
 
 	// Define which routes require admin/super_admin roles
-	const adminRoutes = ['/admin/users'];
+	// Note: /admin/tenant (singular) is for tenant settings (admin access)
+	// /admin/tenants (plural) is for all tenants list (super_admin only)
+	const adminRoutes = ['/admin/users', '/admin/tenant'];
 	const superAdminRoutes = ['/admin/tenants'];
 
 	$: currentPath = $page.url.pathname;
@@ -28,7 +32,12 @@
 			if ($isSuperAdmin) {
 				authorized = true;
 			} else {
-				// Not super admin - redirect to dashboard (or could show 403)
+				// Not super admin - redirect to dashboard with toast
+				toasts.add({
+					kind: 'warning',
+					title: 'Access Denied',
+					subtitle: 'You do not have permission to access that page.'
+				});
 				goto('/dashboard');
 			}
 		} else if (adminRoutes.some((route) => currentPath.startsWith(route))) {
@@ -36,7 +45,12 @@
 			if ($isAdmin) {
 				authorized = true;
 			} else {
-				// Not admin - redirect to dashboard
+				// Not admin - redirect to dashboard with toast
+				toasts.add({
+					kind: 'warning',
+					title: 'Access Denied',
+					subtitle: 'You do not have permission to access that page.'
+				});
 				goto('/dashboard');
 			}
 		} else {
@@ -53,6 +67,7 @@
 		<SkeletonPlaceholder style="width: 100%; height: 100vh;" />
 	</div>
 {:else if authorized}
+	<ToastContainer />
 	<AppShell>
 		<slot />
 	</AppShell>

@@ -96,10 +96,15 @@
 					text="Users"
 					isSelected={currentPath === '/admin/users'}
 				/>
+				<SideNavMenuItem
+					href="/admin/tenant"
+					text="Tenant Settings"
+					isSelected={currentPath === '/admin/tenant'}
+				/>
 				{#if $isSuperAdmin}
 					<SideNavMenuItem
 						href="/admin/tenants"
-						text="Tenants"
+						text="All Tenants"
 						isSelected={currentPath === '/admin/tenants'}
 					/>
 				{/if}
