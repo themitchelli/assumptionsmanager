@@ -312,3 +312,17 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/schemas.py (RejectRequest), backend/services/approvals/service.py (reject method), backend/routers/versions.py (reject endpoint)
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:50 - PRD-012 US-005: Resubmit rejected version - COMPLETE
+
+- POST /tables/{id}/versions/{version_id}/submit also works for rejected versions
+- Transitions status from rejected to submitted (resubmission)
+- Request body optional: comment field for resubmission notes
+- Updates submitted_by and submitted_at, clears reviewed_by and reviewed_at
+- Creates entry in approval_history with from_status=rejected, to_status=submitted
+- Returns 200 with updated version including new approval status
+- Returns 400 if version is not in draft or rejected status
+- Returns 403 if user role is viewer
+- Implementation was already present in US-002 (submit_for_approval supports both draft and rejected)
+- Files changed: No changes needed - functionality verified through testing
+- Tests: manual API testing passed all acceptance criteria
+

@@ -164,7 +164,7 @@
         "Returns 403 if user role is viewer"
       ],
       "priority": 5,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",
