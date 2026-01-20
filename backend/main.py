@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import text
 
 from database import engine
-from routers import auth, users, tables
+from routers import auth, users, tables, versions
 from auth import get_current_user, TokenData
 from schemas import TenantCreate, TenantResponse
 
@@ -11,6 +11,7 @@ app = FastAPI(title="Assumptions Manager", version="0.1.0")
 app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tables.router)
+app.include_router(versions.router)
 
 
 @app.get("/")

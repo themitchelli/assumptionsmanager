@@ -64,6 +64,28 @@ CREATE TABLE assumption_cells (
     UNIQUE(row_id, column_id)
 );
 
+-- Version snapshots for assumption tables
+CREATE TABLE assumption_versions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    table_id UUID NOT NULL REFERENCES assumption_tables(id) ON DELETE CASCADE,
+    version_number INTEGER NOT NULL,
+    comment TEXT NOT NULL,
+    created_by UUID NOT NULL REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    context JSONB DEFAULT '{}',
+    UNIQUE(table_id, version_number)
+);
+
+-- Immutable cell snapshots - copied from assumption_cells at version creation
+CREATE TABLE assumption_version_cells (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version_id UUID NOT NULL REFERENCES assumption_versions(id) ON DELETE CASCADE,
+    column_id UUID NOT NULL,
+    column_name TEXT NOT NULL,
+    row_index INTEGER NOT NULL,
+    value TEXT
+);
+
 -- Audit log
 CREATE TABLE audit_log (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -85,6 +107,9 @@ CREATE INDEX idx_assumption_rows_table ON assumption_rows(table_id);
 CREATE INDEX idx_assumption_cells_row ON assumption_cells(row_id);
 CREATE INDEX idx_assumption_cells_column ON assumption_cells(column_id);
 CREATE INDEX idx_audit_log_tenant ON audit_log(tenant_id);
+CREATE INDEX idx_assumption_versions_table ON assumption_versions(table_id);
+CREATE INDEX idx_assumption_version_cells_version ON assumption_version_cells(version_id);
+CREATE INDEX idx_assumption_version_cells_version_row ON assumption_version_cells(version_id, row_index);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

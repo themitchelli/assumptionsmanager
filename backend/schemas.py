@@ -149,3 +149,36 @@ class RowsCreate(BaseModel):
 class RowUpdate(BaseModel):
     """Partial update for row cells"""
     cells: dict[str, str | int | float | bool | None]
+
+
+# Version schemas
+
+class VersionCreate(BaseModel):
+    """Request body for creating a version snapshot"""
+    comment: str
+
+
+class VersionResponse(BaseModel):
+    """Version metadata response"""
+    id: UUID
+    version_number: int
+    comment: str
+    created_by: UUID
+    created_by_name: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class VersionListResponse(BaseModel):
+    """Version metadata for list endpoints (without full data)"""
+    id: UUID
+    version_number: int
+    comment: str
+    created_by: UUID
+    created_by_name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
