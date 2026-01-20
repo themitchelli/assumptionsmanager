@@ -213,3 +213,26 @@ All eight user stories completed:
 
 Full CRUD operations for assumption tables and rows working with tenant isolation.
 
+## 2026-01-20 07:30 - PRD-010: Assumption Table Versioning - COMPLETE
+
+All six user stories completed:
+- US-001: POST /tables/{id}/versions - create version snapshot
+- US-002: GET /tables/{id}/versions - list version history
+- US-003: GET /tables/{id}/versions/{version_id} - get version with full data
+- US-004: POST /tables/{id}/versions/{version_id}/restore - restore from version
+- US-005: DELETE /tables/{id}/versions/{version_id} - delete version (admin only)
+- US-006: GET /tables/{id}/versions/compare?v1=&v2= - diff two versions
+
+Database schema: assumption_versions and assumption_version_cells tables added.
+Versioning logic isolated in backend/services/versioning/ for future extraction.
+Diff algorithm is entity-agnostic with row-by-row comparison.
+
+Files changed:
+- backend/init.sql (new tables)
+- backend/services/versioning/service.py (VersioningService)
+- backend/routers/versions.py (all endpoints)
+- backend/schemas.py (version schemas)
+- backend/main.py (router registration)
+
+Tests: manual API testing passed all acceptance criteria
+
