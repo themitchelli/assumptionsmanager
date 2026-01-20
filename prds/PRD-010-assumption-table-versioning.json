@@ -1,0 +1,189 @@
+{
+  "id": "PRD-010",
+  "title": "Assumption Table Versioning",
+  "type": "feature",
+  "status": "pending",
+  "description": "Git-style version control for assumption tables. Enables actuaries to create snapshots, track changes over time, and maintain audit trails. Designed as a clean internal module that could be extracted for future products (e.g., Model Manager) without blocking current delivery.",
+  "architectureNotes": {
+    "extractability": "All versioning logic lives in backend/services/versioning/ with clear interfaces. No direct SQL in routers - all DB access through service layer.",
+    "futureProofing": [
+      "Service accepts generic 'entity_type' and 'entity_id' parameters (hardcoded to 'assumption_table' for now)",
+      "Version metadata schema supports arbitrary JSON in 'context' field for future entity-specific data",
+      "Diff algorithm is entity-agnostic - compares snapshots as structured data, not table-specific logic"
+    ],
+    "currentScope": "Assumption tables only. No premature abstraction - extract when Model Manager PRD begins."
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create version snapshot",
+      "description": "As an analyst, I want to create a named snapshot of the current table state so I can preserve it before making changes",
+      "acceptanceCriteria": [
+        "POST /tables/{id}/versions creates a new version",
+        "Request body: { \"comment\": \"Q3 mortality update\" } (comment required, max 500 chars)",
+        "Copies all current rows and cells into version_cells table",
+        "Auto-increments version_number per table (1, 2, 3...)",
+        "Records created_by (current user) and created_at timestamp",
+        "Returns 201 with version metadata including version_number",
+        "Returns 404 if table not found or not in tenant",
+        "Requires analyst or admin role (viewers cannot create versions)"
+      ],
+      "priority": 1,
+      "passes": true
+    },
+    {
+      "id": "US-002",
+      "title": "List version history",
+      "description": "As a user, I want to see all versions of a table so I can understand its change history",
+      "acceptanceCriteria": [
+        "GET /tables/{id}/versions returns array of version metadata",
+        "Each version includes: id, version_number, comment, created_by (with user name), created_at",
+        "Ordered by version_number descending (newest first)",
+        "Does NOT include cell data (that's US-003)",
+        "Returns empty array if no versions exist",
+        "Returns 404 if table not found or not in tenant",
+        "All roles can view (viewer, analyst, admin)"
+      ],
+      "priority": 2,
+      "passes": true
+    },
+    {
+      "id": "US-003",
+      "title": "Get version snapshot",
+      "description": "As a user, I want to retrieve the full data from a specific version so I can see what the table looked like at that point",
+      "acceptanceCriteria": [
+        "GET /tables/{id}/versions/{version_id} returns full version with data",
+        "Response includes version metadata AND reconstructed table data",
+        "Table data format matches GET /tables/{id} response structure",
+        "Returns 404 if version not found or table not in tenant",
+        "All roles can view"
+      ],
+      "priority": 3,
+      "passes": true
+    },
+    {
+      "id": "US-004",
+      "title": "Restore version",
+      "description": "As an analyst, I want to restore a previous version so I can roll back unwanted changes",
+      "acceptanceCriteria": [
+        "POST /tables/{id}/versions/{version_id}/restore replaces current table data",
+        "Deletes all current rows/cells and replaces with version snapshot data",
+        "Does NOT delete the version being restored from (versions are immutable)",
+        "Does NOT auto-create a new version (user can manually snapshot after restore if needed)",
+        "Returns 200 with restored table data",
+        "Returns 404 if version or table not found",
+        "Requires analyst or admin role"
+      ],
+      "priority": 4,
+      "passes": true
+    },
+    {
+      "id": "US-005",
+      "title": "Delete version",
+      "description": "As an admin, I want to delete old versions so I can manage storage and remove obsolete snapshots",
+      "acceptanceCriteria": [
+        "DELETE /tables/{id}/versions/{version_id} removes version and its cells",
+        "Returns 204 on success",
+        "Returns 404 if not found or not in tenant",
+        "Requires admin role only (analysts cannot delete versions)",
+        "Cannot delete if it's the only version (return 400 with message)"
+      ],
+      "priority": 5,
+      "passes": true
+    },
+    {
+      "id": "US-006",
+      "title": "Compare two versions",
+      "description": "As a user, I want to compare two versions so I can see what changed between them",
+      "acceptanceCriteria": [
+        "GET /tables/{id}/versions/compare?v1={version_id}&v2={version_id} returns diff structure",
+        "Diff includes: added_rows, deleted_rows, modified_cells",
+        "modified_cells shows: row_index, column_name, old_value, new_value",
+        "Returns structured JSON - UI rendering is PRD-011's job",
+        "v1 and v2 are both required query params",
+        "Returns 404 if either version not found",
+        "Returns 400 if v1 and v2 are the same version",
+        "All roles can view"
+      ],
+      "priority": 6,
+      "passes": true
+    }
+  ],
+  "dataModel": {
+    "newTables": [
+      {
+        "name": "assumption_versions",
+        "description": "Version metadata - one row per snapshot",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()" },
+          { "name": "table_id", "type": "UUID", "constraints": "NOT NULL REFERENCES assumption_tables(id) ON DELETE CASCADE" },
+          { "name": "version_number", "type": "INTEGER", "constraints": "NOT NULL" },
+          { "name": "comment", "type": "TEXT", "constraints": "NOT NULL" },
+          { "name": "created_by", "type": "UUID", "constraints": "NOT NULL REFERENCES users(id)" },
+          { "name": "created_at", "type": "TIMESTAMPTZ", "constraints": "DEFAULT NOW()" },
+          { "name": "context", "type": "JSONB", "constraints": "DEFAULT '{}' -- future extensibility" }
+        ],
+        "indexes": [
+          "UNIQUE(table_id, version_number)",
+          "INDEX ON assumption_versions(table_id)"
+        ]
+      },
+      {
+        "name": "assumption_version_cells",
+        "description": "Immutable cell snapshots - copied from assumption_cells at version creation",
+        "columns": [
+          { "name": "id", "type": "UUID", "constraints": "PRIMARY KEY DEFAULT gen_random_uuid()" },
+          { "name": "version_id", "type": "UUID", "constraints": "NOT NULL REFERENCES assumption_versions(id) ON DELETE CASCADE" },
+          { "name": "column_id", "type": "UUID", "constraints": "NOT NULL" },
+          { "name": "column_name", "type": "TEXT", "constraints": "NOT NULL -- denormalized for query simplicity" },
+          { "name": "row_index", "type": "INTEGER", "constraints": "NOT NULL" },
+          { "name": "value", "type": "TEXT", "constraints": "-- NULL allowed for empty cells" }
+        ],
+        "indexes": [
+          "INDEX ON assumption_version_cells(version_id)",
+          "INDEX ON assumption_version_cells(version_id, row_index)"
+        ],
+        "notes": "column_name is denormalized because column definitions might change after versioning. We want the snapshot to be self-contained."
+      }
+    ],
+    "rlsPolicy": "assumption_versions inherits tenant isolation via JOIN to assumption_tables. No direct tenant_id needed."
+  },
+  "technicalNotes": {
+    "serviceLayer": {
+      "location": "backend/services/versioning/",
+      "files": [
+        "service.py -- main VersioningService class",
+        "models.py -- Pydantic schemas for version data",
+        "diff.py -- comparison algorithm (entity-agnostic)"
+      ],
+      "interface": "VersioningService.create_snapshot(entity_type, entity_id, user_id, comment) -> Version"
+    },
+    "diffAlgorithm": {
+      "approach": "Row-by-row comparison using row_index as key",
+      "addedRows": "row_index exists in v2 but not v1",
+      "deletedRows": "row_index exists in v1 but not v2",
+      "modifiedCells": "same row_index, same column_name, different value",
+      "performance": "O(n) where n = max rows between versions. Fine for actuarial tables (<10k rows typically)."
+    },
+    "immutability": "Once created, version data is never modified. Restore copies data OUT of version, doesn't touch version tables.",
+    "storageCost": "Each version duplicates all cells. For MVP this is fine. Future optimization: delta storage (only store changed cells)."
+  },
+  "definitionOfDone": [
+    "All six user stories implemented and tested",
+    "Database migrations for assumption_versions and assumption_version_cells",
+    "RLS policies via JOIN to assumption_tables",
+    "Versioning logic isolated in backend/services/versioning/",
+    "Service interface documented for future extraction",
+    "API documented in /docs"
+  ],
+  "futureEnhancements": [
+    "Delta storage (only store changed cells, reconstruct full snapshot on read)",
+    "Version tagging (mark versions as 'approved', 'draft', 'archived')",
+    "Branch support (multiple working versions, merge workflow)",
+    "Retention policies (auto-delete versions older than X days)",
+    "Extract to standalone microservice when Model Manager begins"
+  ],
+  "dependencies": [
+    "PRD-009: Assumption Tables CRUD (must be complete)"
+  ]
+}

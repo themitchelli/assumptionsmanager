@@ -182,3 +182,38 @@ class VersionListResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class VersionRowResponse(BaseModel):
+    """Row data from a version snapshot"""
+    row_index: int
+    cells: dict[str, str | int | float | bool | None]
+
+
+class VersionDetailResponse(BaseModel):
+    """Full version with metadata and data"""
+    id: UUID
+    version_number: int
+    comment: str
+    created_by: UUID
+    created_by_name: str | None
+    created_at: datetime
+    rows: list[VersionRowResponse]
+
+    class Config:
+        from_attributes = True
+
+
+class ModifiedCellResponse(BaseModel):
+    """A cell that changed between versions"""
+    row_index: int
+    column_name: str
+    old_value: str | None
+    new_value: str | None
+
+
+class VersionDiffResponse(BaseModel):
+    """Diff between two versions"""
+    added_rows: list[int]
+    deleted_rows: list[int]
+    modified_cells: list[ModifiedCellResponse]

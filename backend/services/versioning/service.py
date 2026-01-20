@@ -162,10 +162,11 @@ class VersioningService:
             for row in result
         ]
 
-    def get_version_data(self, version_id: UUID) -> list[dict]:
+    def get_version_data(self, version_id: UUID, table_id: UUID | None = None) -> list[dict]:
         """Get all cell data for a version snapshot.
 
-        Returns list of cells with row_index, column_name, value.
+        Returns list of cells with row_index, column_name, value (typed).
+        If table_id is provided, values are cast to their column types.
         """
         result = self.db.execute(
             text("""
@@ -177,7 +178,7 @@ class VersioningService:
             {"version_id": str(version_id)}
         )
 
-        return [
+        cells = [
             {
                 "row_index": row[0],
                 "column_name": row[1],
@@ -185,6 +186,36 @@ class VersioningService:
             }
             for row in result
         ]
+
+        # If table_id provided, cast values to their column types
+        if table_id:
+            col_result = self.db.execute(
+                text("""
+                    SELECT name, data_type FROM assumption_columns
+                    WHERE table_id = :table_id
+                """),
+                {"table_id": str(table_id)}
+            )
+            column_types = {row[0]: row[1] for row in col_result}
+
+            for cell in cells:
+                col_type = column_types.get(cell["column_name"], "text")
+                cell["value"] = self._cast_value(cell["value"], col_type)
+
+        return cells
+
+    def _cast_value(self, value: str | None, data_type: str):
+        """Cast string value to appropriate Python type."""
+        if value is None:
+            return None
+        if data_type == "integer":
+            return int(value)
+        elif data_type == "decimal":
+            return float(value)
+        elif data_type == "boolean":
+            return value.lower() in ("true", "1", "yes")
+        else:  # text, date
+            return value
 
     def count_versions(self, table_id: UUID) -> int:
         """Count versions for a table."""
@@ -272,3 +303,74 @@ class VersioningService:
                         "value": value
                     }
                 )
+
+    def compare_versions(self, version1_id: UUID, version2_id: UUID) -> dict:
+        """Compare two versions and return the differences.
+
+        Returns a dict with:
+        - added_rows: list of row_index values in v2 but not v1
+        - deleted_rows: list of row_index values in v1 but not v2
+        - modified_cells: list of {row_index, column_name, old_value, new_value}
+        """
+        # Get v1 data
+        v1_cells = self._get_version_cells_map(version1_id)
+        # Get v2 data
+        v2_cells = self._get_version_cells_map(version2_id)
+
+        # Get all unique row indices
+        v1_rows = set(v1_cells.keys())
+        v2_rows = set(v2_cells.keys())
+
+        # Added rows: in v2 but not v1
+        added_rows = sorted(list(v2_rows - v1_rows))
+
+        # Deleted rows: in v1 but not v2
+        deleted_rows = sorted(list(v1_rows - v2_rows))
+
+        # Modified cells: same row exists in both, compare cell values
+        modified_cells = []
+        common_rows = v1_rows & v2_rows
+
+        for row_idx in sorted(common_rows):
+            v1_row = v1_cells[row_idx]
+            v2_row = v2_cells[row_idx]
+
+            # Get all columns in both versions of this row
+            all_columns = set(v1_row.keys()) | set(v2_row.keys())
+
+            for col_name in sorted(all_columns):
+                old_val = v1_row.get(col_name)
+                new_val = v2_row.get(col_name)
+
+                if old_val != new_val:
+                    modified_cells.append({
+                        "row_index": row_idx,
+                        "column_name": col_name,
+                        "old_value": old_val,
+                        "new_value": new_val
+                    })
+
+        return {
+            "added_rows": added_rows,
+            "deleted_rows": deleted_rows,
+            "modified_cells": modified_cells
+        }
+
+    def _get_version_cells_map(self, version_id: UUID) -> dict[int, dict[str, str | None]]:
+        """Get version cells as a map of row_index -> {column_name: value}."""
+        result = self.db.execute(
+            text("""
+                SELECT row_index, column_name, value
+                FROM assumption_version_cells
+                WHERE version_id = :version_id
+            """),
+            {"version_id": str(version_id)}
+        )
+
+        cells_map: dict[int, dict[str, str | None]] = {}
+        for row_index, column_name, value in result:
+            if row_index not in cells_map:
+                cells_map[row_index] = {}
+            cells_map[row_index][column_name] = value
+
+        return cells_map
