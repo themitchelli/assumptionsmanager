@@ -40,6 +40,11 @@ class TenantCreate(BaseModel):
     name: str
 
 
+class TenantUpdate(BaseModel):
+    """Partial update for tenant settings"""
+    name: str | None = None
+
+
 class TenantResponse(BaseModel):
     id: UUID
     name: str

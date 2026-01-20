@@ -48,6 +48,10 @@ export interface CreateTenantRequest {
 	name: string;
 }
 
+export interface UpdateTenantRequest {
+	name?: string;
+}
+
 // ============================================================
 // User Management Types
 // ============================================================
