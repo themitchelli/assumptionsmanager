@@ -208,7 +208,7 @@
         "Admins cannot bypass this protection - approved is terminal"
       ],
       "priority": 8,
-      "passes": false
+      "passes": true
     }
   ],
   "testingNotes": [

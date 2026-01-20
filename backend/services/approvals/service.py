@@ -86,6 +86,11 @@ class ApprovalService:
         from_status = current["status"]
 
         # Validate state transition
+        if from_status == "approved":
+            raise ValueError(
+                "Cannot submit an approved version. Approved versions are immutable "
+                "and cannot be modified to maintain audit trail integrity."
+            )
         if from_status not in ("draft", "rejected"):
             raise ValueError(
                 f"Cannot submit version: current status is '{from_status}'. "
@@ -151,6 +156,11 @@ class ApprovalService:
         from_status = current["status"]
 
         # Validate state transition
+        if from_status == "approved":
+            raise ValueError(
+                "Cannot approve an already approved version. Approved versions are immutable "
+                "and cannot be modified to maintain audit trail integrity."
+            )
         if from_status != "submitted":
             raise ValueError(
                 f"Cannot approve version: current status is '{from_status}'. "
@@ -222,6 +232,11 @@ class ApprovalService:
         from_status = current["status"]
 
         # Validate state transition
+        if from_status == "approved":
+            raise ValueError(
+                "Cannot reject an approved version. Approved versions are immutable "
+                "and cannot be modified to maintain audit trail integrity."
+            )
         if from_status != "submitted":
             raise ValueError(
                 f"Cannot reject version: current status is '{from_status}'. "

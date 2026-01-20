@@ -899,6 +899,28 @@ async def restore_version(
             if not version or version["table_id"] != table_id:
                 raise HTTPException(status_code=404, detail="Version not found")
 
+            # Check if restoring would overwrite data from an approved version
+            # Restoring TO an approved version is fine, but restoring to a non-approved
+            # version when approved versions exist would diverge from the approved state
+            if version.get("approval_status") != "approved":
+                # Check if any approved version exists for this table
+                approved_check = db.execute(
+                    text("""
+                        SELECT v.id FROM assumption_versions v
+                        JOIN version_approvals va ON va.version_id = v.id
+                        WHERE v.table_id = :table_id AND va.status = 'approved'
+                        LIMIT 1
+                    """),
+                    {"table_id": str(table_id)}
+                )
+                if approved_check.fetchone():
+                    raise HTTPException(
+                        status_code=400,
+                        detail="Cannot restore to a non-approved version when approved versions exist. "
+                               "This would overwrite data from an approved version. "
+                               "Restore to an approved version instead to maintain audit trail integrity."
+                    )
+
             # Restore the version data
             service.restore_version(table_id, version_id)
             db.commit()
@@ -1018,6 +1040,13 @@ async def delete_version(
 
             if not version or version["table_id"] != table_id:
                 raise HTTPException(status_code=404, detail="Version not found")
+
+            # Check if version is approved - approved versions cannot be deleted
+            if version.get("approval_status") == "approved":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Cannot delete an approved version. Approved versions are immutable to maintain audit trail integrity."
+                )
 
             # Check if this is the only version
             version_count = service.count_versions(table_id)

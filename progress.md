@@ -351,3 +351,28 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/routers/versions.py, backend/schemas.py, backend/services/versioning/service.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 12:15 - PRD-012 US-008: Prevent modification of approved versions - COMPLETE
+
+- DELETE /tables/{id}/versions/{version_id} returns 403 if version is approved
+- POST /tables/{id}/versions/{version_id}/restore returns 400 if restoring to non-approved version when approved versions exist
+- Restoring TO an approved version is allowed (maintains approved state)
+- Approved versions are fully immutable - no status changes allowed (submit, approve, reject all return 400)
+- Error messages clearly explain that approved versions cannot be modified with "immutable" and "audit trail" language
+- Admins cannot bypass this protection - approved is terminal state
+- Files changed: backend/routers/versions.py (delete_version, restore_version), backend/services/approvals/service.py (submit_for_approval, approve, reject)
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 12:15 - PRD-012: Approval Workflow - COMPLETE
+
+All eight user stories completed:
+- US-001: View approval status
+- US-002: Submit version for approval
+- US-003: Approve version
+- US-004: Reject version
+- US-005: Resubmit rejected version
+- US-006: View approval history
+- US-007: Filter versions by approval status
+- US-008: Prevent modification of approved versions
+
+Full approval workflow implemented with maker/checker pattern, immutable audit trail, and approved version protection.
+
