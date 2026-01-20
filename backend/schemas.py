@@ -319,3 +319,46 @@ class ApprovalHistoryEntry(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# CSV Import schemas (PRD-015)
+
+class InferredColumn(BaseModel):
+    """Inferred column type from CSV"""
+    name: str
+    type: str  # "text", "integer", "decimal", "date", "boolean"
+
+
+class ImportValidationError(BaseModel):
+    """A validation error from CSV import"""
+    row: int
+    column: str
+    expected: str
+    value: str
+    message: str
+
+
+class ImportPreviewResponse(BaseModel):
+    """Preview of what a CSV import will do"""
+    inferred_columns: list[InferredColumn]
+    row_count: int
+    sample_rows: list[dict[str, str]]  # First 10 rows
+    validation_warnings: list[ImportValidationError] = []
+
+
+class ImportResultResponse(BaseModel):
+    """Result of a successful CSV import"""
+    table_id: UUID
+    table_name: str
+    column_count: int
+    row_count: int
+
+
+class ImportReplaceResultResponse(BaseModel):
+    """Result of a CSV import that replaces existing data"""
+    rows_imported: int
+
+
+class ImportAppendResultResponse(BaseModel):
+    """Result of a CSV import that appends data"""
+    rows_added: int
