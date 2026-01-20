@@ -1,23 +1,22 @@
 <script lang="ts">
-	import { Button } from 'carbon-components-svelte';
+	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+
+	onMount(() => {
+		// Redirect to dashboard (will be protected by route guards in US-006)
+		goto('/dashboard');
+	});
 </script>
 
-<main class="page-container">
-	<h1>Assumptions Manager</h1>
-	<p>Welcome to the Actuarial Assumptions Manager.</p>
-	<Button>Carbon Button Test</Button>
-</main>
+<div class="loading">
+	<p>Redirecting...</p>
+</div>
 
 <style>
-	.page-container {
-		padding: 2rem;
-	}
-
-	h1 {
-		margin-bottom: 1rem;
-	}
-
-	p {
-		margin-bottom: 1rem;
+	.loading {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		height: 100vh;
 	}
 </style>
