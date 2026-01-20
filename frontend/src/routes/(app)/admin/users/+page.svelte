@@ -22,6 +22,7 @@
 	import { toasts } from '$lib/stores/toast';
 	import type { UserResponse } from '$lib/api/types';
 	import AddUserModal from '$lib/components/AddUserModal.svelte';
+	import EditUserModal from '$lib/components/EditUserModal.svelte';
 
 	// State
 	let users: UserResponse[] = [];
@@ -30,6 +31,8 @@
 
 	// Modal state
 	let addUserModalOpen = false;
+	let editUserModalOpen = false;
+	let editingUser: UserResponse | null = null;
 
 	// Filtering
 	let searchQuery = '';
@@ -138,8 +141,32 @@
 	}
 
 	function handleEdit(userId: string) {
-		// TODO: Implement in US-003
-		console.log('Edit user:', userId);
+		const user = users.find((u) => u.id === userId);
+		if (user) {
+			editingUser = user;
+			editUserModalOpen = true;
+		}
+	}
+
+	function handleUserUpdated(event: CustomEvent<UserResponse>) {
+		const updatedUser = event.detail;
+
+		// Update the UI with the confirmed change from the server
+		users = users.map((u) => (u.id === updatedUser.id ? updatedUser : u));
+
+		editUserModalOpen = false;
+		editingUser = null;
+
+		toasts.add({
+			kind: 'success',
+			title: 'User updated',
+			subtitle: `${updatedUser.email}'s role has been changed to ${updatedUser.role}`
+		});
+	}
+
+	function handleEditModalClose() {
+		editUserModalOpen = false;
+		editingUser = null;
 	}
 
 	function handleDelete(userId: string) {
@@ -295,6 +322,13 @@
 	{existingEmails}
 	on:close={() => (addUserModalOpen = false)}
 	on:created={handleUserCreated}
+/>
+
+<EditUserModal
+	bind:open={editUserModalOpen}
+	user={editingUser}
+	on:close={handleEditModalClose}
+	on:updated={handleUserUpdated}
 />
 
 <style>
