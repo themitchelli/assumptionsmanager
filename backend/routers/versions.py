@@ -471,7 +471,12 @@ async def get_version(
                 created_by=version["created_by"],
                 created_by_name=version.get("created_by_email"),
                 created_at=version["created_at"],
-                rows=rows
+                rows=rows,
+                approval_status=version.get("approval_status", "draft"),
+                submitted_by=version.get("submitted_by"),
+                submitted_at=version.get("submitted_at"),
+                reviewed_by=version.get("reviewed_by"),
+                reviewed_at=version.get("reviewed_at")
             )
         finally:
             db.close()

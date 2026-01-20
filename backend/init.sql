@@ -99,6 +99,30 @@ CREATE TABLE audit_log (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Version approval status tracking
+CREATE TABLE version_approvals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version_id UUID NOT NULL UNIQUE REFERENCES assumption_versions(id) ON DELETE CASCADE,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'submitted', 'approved', 'rejected')),
+    submitted_by UUID REFERENCES users(id),
+    submitted_at TIMESTAMP WITH TIME ZONE,
+    reviewed_by UUID REFERENCES users(id),
+    reviewed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Immutable approval history audit log
+CREATE TABLE approval_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version_id UUID NOT NULL REFERENCES assumption_versions(id) ON DELETE CASCADE,
+    from_status VARCHAR(20) CHECK (from_status IN ('draft', 'submitted', 'approved', 'rejected')),
+    to_status VARCHAR(20) NOT NULL CHECK (to_status IN ('draft', 'submitted', 'approved', 'rejected')),
+    changed_by UUID NOT NULL REFERENCES users(id),
+    comment TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Create indexes
 CREATE INDEX idx_users_tenant ON users(tenant_id);
 CREATE INDEX idx_assumption_tables_tenant ON assumption_tables(tenant_id);
@@ -110,6 +134,10 @@ CREATE INDEX idx_audit_log_tenant ON audit_log(tenant_id);
 CREATE INDEX idx_assumption_versions_table ON assumption_versions(table_id);
 CREATE INDEX idx_assumption_version_cells_version ON assumption_version_cells(version_id);
 CREATE INDEX idx_assumption_version_cells_version_row ON assumption_version_cells(version_id, row_index);
+CREATE INDEX idx_version_approvals_version ON version_approvals(version_id);
+CREATE INDEX idx_version_approvals_status ON version_approvals(status);
+CREATE INDEX idx_approval_history_version ON approval_history(version_id);
+CREATE INDEX idx_approval_history_created_at ON approval_history(created_at);
 
 -- Enable Row Level Security
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;

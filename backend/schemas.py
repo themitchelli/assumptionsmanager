@@ -199,6 +199,12 @@ class VersionDetailResponse(BaseModel):
     created_by_name: str | None
     created_at: datetime
     rows: list[VersionRowResponse]
+    # Approval status fields (PRD-012)
+    approval_status: str = "draft"  # "draft", "submitted", "approved", "rejected"
+    submitted_by: UUID | None = None
+    submitted_at: datetime | None = None
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -272,3 +278,14 @@ class FormattedDiffResponse(BaseModel):
     summary: DiffSummary
     column_summary: list[ColumnSummary]
     changes: list[RowChange]
+
+
+# Approval Workflow schemas (PRD-012)
+
+class ApprovalStatus(BaseModel):
+    """Approval status for a version"""
+    status: str  # "draft", "submitted", "approved", "rejected"
+    submitted_by: UUID | None = None
+    submitted_at: datetime | None = None
+    reviewed_by: UUID | None = None
+    reviewed_at: datetime | None = None

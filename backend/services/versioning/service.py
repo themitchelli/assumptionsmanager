@@ -102,6 +102,15 @@ class VersioningService:
             {"version_id": str(version_id), "table_id": str(table_id)}
         )
 
+        # Create initial approval record (draft status)
+        self.db.execute(
+            text("""
+                INSERT INTO version_approvals (version_id, status)
+                VALUES (:version_id, 'draft')
+            """),
+            {"version_id": str(version_id)}
+        )
+
         return {
             "id": version_row[0],
             "version_number": version_row[1],
@@ -111,13 +120,17 @@ class VersioningService:
         }
 
     def get_version(self, version_id: UUID) -> dict | None:
-        """Get version metadata by ID."""
+        """Get version metadata by ID, including approval status."""
         result = self.db.execute(
             text("""
                 SELECT v.id, v.table_id, v.version_number, v.comment,
-                       v.created_by, v.created_at, u.email as created_by_email
+                       v.created_by, v.created_at, u.email as created_by_email,
+                       COALESCE(va.status, 'draft') as approval_status,
+                       va.submitted_by, va.submitted_at,
+                       va.reviewed_by, va.reviewed_at
                 FROM assumption_versions v
                 JOIN users u ON u.id = v.created_by
+                LEFT JOIN version_approvals va ON va.version_id = v.id
                 WHERE v.id = :version_id
             """),
             {"version_id": str(version_id)}
@@ -133,22 +146,39 @@ class VersioningService:
             "comment": row[3],
             "created_by": row[4],
             "created_by_email": row[6],
-            "created_at": row[5]
+            "created_at": row[5],
+            "approval_status": row[7],
+            "submitted_by": row[8],
+            "submitted_at": row[9],
+            "reviewed_by": row[10],
+            "reviewed_at": row[11]
         }
 
-    def list_versions(self, table_id: UUID) -> list[dict]:
-        """List all versions for a table, newest first."""
-        result = self.db.execute(
-            text("""
-                SELECT v.id, v.version_number, v.comment,
-                       v.created_by, v.created_at, u.email as created_by_name
-                FROM assumption_versions v
-                JOIN users u ON u.id = v.created_by
-                WHERE v.table_id = :table_id
-                ORDER BY v.version_number DESC
-            """),
-            {"table_id": str(table_id)}
-        )
+    def list_versions(self, table_id: UUID, status_filter: list[str] | None = None) -> list[dict]:
+        """List all versions for a table, newest first.
+
+        Args:
+            table_id: UUID of the table
+            status_filter: Optional list of approval statuses to filter by
+        """
+        query = """
+            SELECT v.id, v.version_number, v.comment,
+                   v.created_by, v.created_at, u.email as created_by_name,
+                   COALESCE(va.status, 'draft') as approval_status
+            FROM assumption_versions v
+            JOIN users u ON u.id = v.created_by
+            LEFT JOIN version_approvals va ON va.version_id = v.id
+            WHERE v.table_id = :table_id
+        """
+        params = {"table_id": str(table_id)}
+
+        if status_filter:
+            query += " AND COALESCE(va.status, 'draft') = ANY(:statuses)"
+            params["statuses"] = status_filter
+
+        query += " ORDER BY v.version_number DESC"
+
+        result = self.db.execute(text(query), params)
 
         return [
             {
@@ -157,7 +187,8 @@ class VersioningService:
                 "comment": row[2],
                 "created_by": row[3],
                 "created_by_name": row[5],
-                "created_at": row[4]
+                "created_at": row[4],
+                "approval_status": row[6]
             }
             for row in result
         ]

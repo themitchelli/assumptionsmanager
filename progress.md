@@ -256,3 +256,15 @@ Files changed:
 
 Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:28 - PRD-012 US-001: View approval status - COMPLETE
+
+- GET /tables/{id}/versions/{version_id} now includes approval_status in response
+- Status is one of: draft, submitted, approved, rejected
+- Response includes submitted_by, submitted_at, reviewed_by, reviewed_at fields
+- New versions default to 'draft' status (created automatically in version_approvals table)
+- All roles can view approval status (viewer, analyst, admin tested)
+- Database schema: added version_approvals and approval_history tables
+- New service: backend/services/approvals/service.py (ApprovalService)
+- Files changed: backend/init.sql, backend/schemas.py, backend/services/versioning/service.py, backend/routers/versions.py
+- Tests: manual API testing passed all acceptance criteria
+
