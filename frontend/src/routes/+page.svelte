@@ -1,11 +1,16 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
+	import { auth } from '$lib/stores/auth';
 
-	onMount(() => {
-		// Redirect to dashboard (will be protected by route guards in US-006)
-		goto('/dashboard');
-	});
+	// Wait for auth check to complete, then redirect appropriately
+	$: if (browser && !$auth.isLoading) {
+		if ($auth.isAuthenticated) {
+			goto('/dashboard');
+		} else {
+			goto('/login');
+		}
+	}
 </script>
 
 <div class="loading">

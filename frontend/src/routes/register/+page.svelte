@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import {
 		Button,
 		Form,
@@ -10,6 +11,7 @@
 		Tile,
 		ProgressBar
 	} from 'carbon-components-svelte';
+	import { auth } from '$lib/stores/auth';
 
 	let name = '';
 	let email = '';
@@ -23,6 +25,11 @@
 	let tenantIdError = '';
 	let isSubmitting = false;
 	let errorMessage = '';
+
+	// Redirect authenticated users to dashboard
+	$: if (browser && !$auth.isLoading && $auth.isAuthenticated) {
+		goto('/dashboard');
+	}
 
 	// Password strength calculation
 	$: passwordStrength = calculatePasswordStrength(password);

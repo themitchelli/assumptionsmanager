@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
+	import { browser } from '$app/environment';
 	import {
 		Button,
 		Form,
@@ -25,6 +26,11 @@
 	// Check if user just registered
 	$: if ($page.url.searchParams.get('registered') === 'true') {
 		successMessage = 'Account created successfully. Please sign in.';
+	}
+
+	// Redirect authenticated users to dashboard
+	$: if (browser && !$auth.isLoading && $auth.isAuthenticated) {
+		goto('/dashboard');
 	}
 
 	function validateEmail(value: string): boolean {
