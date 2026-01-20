@@ -179,7 +179,7 @@
         "Returns 404 if version or table not found"
       ],
       "priority": 6,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
@@ -194,7 +194,7 @@
         "All roles can use filter"
       ],
       "priority": 7,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",

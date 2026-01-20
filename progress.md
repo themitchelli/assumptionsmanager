@@ -326,3 +326,28 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: No changes needed - functionality verified through testing
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:55 - PRD-012 US-006: View approval history - COMPLETE
+
+- GET /tables/{id}/versions/{version_id}/history endpoint implemented
+- Returns full approval history for a version in chronological order (oldest first)
+- Each entry includes: id, from_status, to_status, changed_by, changed_by_name (user email), comment, created_at
+- Returns empty array for versions with no history (newly created draft)
+- All roles can view history (viewer, analyst, admin tested)
+- Returns 404 if version or table not found
+- Files changed: backend/schemas.py (ApprovalHistoryEntry), backend/services/approvals/service.py (get_history method), backend/routers/versions.py (history endpoint)
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 11:00 - PRD-012 US-007: Filter versions by approval status - COMPLETE
+
+- GET /tables/{id}/versions now accepts optional query param ?status=<status>
+- Valid status values: draft, submitted, approved, rejected
+- Supports multiple status filters: ?status=submitted&status=rejected
+- Returns 400 with descriptive error for invalid status values
+- Without filter, returns all versions (existing behaviour preserved)
+- Returns empty array if no versions match filter
+- All roles can use filter (viewer, analyst, admin tested)
+- Added approval_status field to VersionListResponse schema
+- Fixed list_versions service to use IN clause with dynamic placeholders
+- Files changed: backend/routers/versions.py, backend/schemas.py, backend/services/versioning/service.py
+- Tests: manual API testing passed all acceptance criteria
+
