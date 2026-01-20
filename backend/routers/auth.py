@@ -92,6 +92,17 @@ def login_user(credentials: UserLogin, db: Session = Depends(get_db)):
                 detail="Invalid email or password",
             )
 
+        # Check if tenant is active
+        tenant = db.execute(
+            select(Tenant).where(Tenant.id == user.tenant_id)
+        ).scalar_one_or_none()
+
+        if tenant and tenant.status == "inactive":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account suspended. Please contact your administrator.",
+            )
+
         # Create JWT token
         access_token = create_access_token(
             user_id=user.id,

@@ -12,15 +12,20 @@
 		ToastNotification,
 		Tag
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, UserMultiple } from 'carbon-icons-svelte';
+	import { ArrowLeft, UserMultiple, Power } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { api } from '$lib/api';
-	import type { TenantDetailResponse } from '$lib/api/types';
+	import { toasts } from '$lib/stores/toast';
+	import type { TenantDetailResponse, UpdateTenantRequest, TenantResponse } from '$lib/api/types';
+	import DeactivateTenantModal from '$lib/components/DeactivateTenantModal.svelte';
 
 	// State
 	let tenant: TenantDetailResponse | null = null;
 	let loading = true;
 	let error: string | null = null;
+
+	// Modal state
+	let showDeactivateModal = false;
 
 	$: tenantId = $page.params.id;
 
@@ -58,6 +63,39 @@
 		}
 
 		loading = false;
+	}
+
+	function handleDeactivateClick() {
+		showDeactivateModal = true;
+	}
+
+	function handleDeactivateModalClose() {
+		showDeactivateModal = false;
+	}
+
+	function handleTenantDeactivated(_event: CustomEvent<{ id: string; status: 'inactive' }>) {
+		if (tenant) {
+			tenant = { ...tenant, status: 'inactive' };
+		}
+		showDeactivateModal = false;
+		toasts.success('Tenant deactivated', `${tenant?.name} has been deactivated`);
+	}
+
+	async function handleReactivate() {
+		if (!tenant) return;
+
+		const response = await api.patch<TenantResponse>(
+			`/tenants/${tenant.id}`,
+			{ status: 'active' } as UpdateTenantRequest
+		);
+
+		if (response.error) {
+			toasts.error('Error', response.error.message);
+			return;
+		}
+
+		tenant = { ...tenant, status: 'active' };
+		toasts.success('Tenant reactivated', `${tenant.name} has been reactivated`);
 	}
 
 	onMount(() => {
@@ -110,10 +148,31 @@
 		<Row>
 			<Column>
 				<div class="tenant-header">
-					<h1 class="page-title">{tenant.name}</h1>
-					<Tag type={getStatusDisplay(tenant.status).type}>
-						{getStatusDisplay(tenant.status).text}
-					</Tag>
+					<div class="tenant-header-left">
+						<h1 class="page-title">{tenant.name}</h1>
+						<Tag type={getStatusDisplay(tenant.status).type}>
+							{getStatusDisplay(tenant.status).text}
+						</Tag>
+					</div>
+					<div class="tenant-header-actions">
+						{#if tenant.status === 'active'}
+							<Button
+								kind="danger-tertiary"
+								icon={Power}
+								on:click={handleDeactivateClick}
+							>
+								Deactivate
+							</Button>
+						{:else}
+							<Button
+								kind="tertiary"
+								icon={Power}
+								on:click={handleReactivate}
+							>
+								Reactivate
+							</Button>
+						{/if}
+					</div>
 				</div>
 			</Column>
 		</Row>
@@ -168,6 +227,14 @@
 	{/if}
 </Grid>
 
+<!-- Deactivate Tenant Modal -->
+<DeactivateTenantModal
+	bind:open={showDeactivateModal}
+	{tenant}
+	on:close={handleDeactivateModalClose}
+	on:deactivated={handleTenantDeactivated}
+/>
+
 <style>
 	.page-title {
 		margin-bottom: 0;
@@ -178,8 +245,20 @@
 	.tenant-header {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
 		gap: 1rem;
 		margin: 1rem 0 1.5rem;
+	}
+
+	.tenant-header-left {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.tenant-header-actions {
+		display: flex;
+		gap: 0.5rem;
 	}
 
 	.section-title {

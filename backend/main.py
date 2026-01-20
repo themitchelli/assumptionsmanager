@@ -46,10 +46,10 @@ async def list_tenants(current_user: TokenData = Depends(get_current_user)):
         with engine.connect() as conn:
             # Get tenants with user counts via LEFT JOIN
             result = conn.execute(text("""
-                SELECT t.id, t.name, t.created_at, COUNT(u.id) as user_count
+                SELECT t.id, t.name, t.created_at, t.status, COUNT(u.id) as user_count
                 FROM tenants t
                 LEFT JOIN users u ON u.tenant_id = t.id
-                GROUP BY t.id, t.name, t.created_at
+                GROUP BY t.id, t.name, t.created_at, t.status
                 ORDER BY t.created_at DESC
             """))
             tenants = [
@@ -57,8 +57,8 @@ async def list_tenants(current_user: TokenData = Depends(get_current_user)):
                     id=row[0],
                     name=row[1],
                     created_at=row[2],
-                    user_count=row[3],
-                    status="active"  # All tenants are active for now (deactivation in US-008)
+                    status=row[3] if row[3] else "active",
+                    user_count=row[4]
                 )
                 for row in result
             ]
@@ -85,8 +85,9 @@ async def get_platform_stats(current_user: TokenData = Depends(get_current_user)
             user_result = conn.execute(text("SELECT COUNT(*) FROM users"))
             total_users = user_result.fetchone()[0]
 
-            # For now, all tenants are active (deactivation feature in US-008)
-            active_tenants = total_tenants
+            # Get active tenant count
+            active_result = conn.execute(text("SELECT COUNT(*) FROM tenants WHERE status = 'active' OR status IS NULL"))
+            active_tenants = active_result.fetchone()[0]
 
         return PlatformStatsResponse(
             total_tenants=total_tenants,
@@ -111,11 +112,11 @@ async def get_tenant(
     try:
         with engine.connect() as conn:
             result = conn.execute(text("""
-                SELECT t.id, t.name, t.created_at, t.updated_at, COUNT(u.id) as user_count
+                SELECT t.id, t.name, t.created_at, t.updated_at, t.status, COUNT(u.id) as user_count
                 FROM tenants t
                 LEFT JOIN users u ON u.tenant_id = t.id
                 WHERE t.id = :tenant_id
-                GROUP BY t.id, t.name, t.created_at, t.updated_at
+                GROUP BY t.id, t.name, t.created_at, t.updated_at, t.status
             """), {"tenant_id": str(tenant_id)})
             row = result.fetchone()
             if not row:
@@ -125,8 +126,8 @@ async def get_tenant(
                 name=row[1],
                 created_at=row[2],
                 updated_at=row[3],
-                user_count=row[4],
-                status="active"  # All tenants are active for now (deactivation in US-008)
+                status=row[4] if row[4] else "active",
+                user_count=row[5]
             )
     except HTTPException:
         raise
@@ -266,18 +267,30 @@ async def update_tenant(
     update: TenantUpdate,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Update tenant settings (admin can update own tenant, super_admin can update any)"""
-    # Admin can only update their own tenant
+    """Update tenant settings (admin can update own tenant name, super_admin can update any field)"""
+    # Admin can only update their own tenant and cannot change status
     if current_user.role == "admin":
         if tenant_id != current_user.tenant_id:
             raise HTTPException(
                 status_code=403,
                 detail="Admin can only update their own tenant"
             )
+        if update.status is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Only super_admin can change tenant status"
+            )
     elif current_user.role != "super_admin":
         raise HTTPException(
             status_code=403,
             detail="Only admin or super_admin can update tenant settings"
+        )
+
+    # Validate status value if provided
+    if update.status is not None and update.status not in ("active", "inactive"):
+        raise HTTPException(
+            status_code=400,
+            detail="Status must be 'active' or 'inactive'"
         )
 
     # Build update query dynamically based on provided fields
@@ -287,6 +300,10 @@ async def update_tenant(
     if update.name is not None:
         update_fields.append("name = :name")
         params["name"] = update.name
+
+    if update.status is not None:
+        update_fields.append("status = :status")
+        params["status"] = update.status
 
     if not update_fields:
         raise HTTPException(
@@ -307,11 +324,11 @@ async def update_tenant(
                 raise HTTPException(status_code=404, detail="Tenant not found")
 
             # Update tenant
-            query = f"UPDATE tenants SET {', '.join(update_fields)} WHERE id = :tenant_id RETURNING id, name, created_at"
+            query = f"UPDATE tenants SET {', '.join(update_fields)} WHERE id = :tenant_id RETURNING id, name, status, created_at"
             result = conn.execute(text(query), params)
             conn.commit()
             row = result.fetchone()
-            return TenantResponse(id=row[0], name=row[1], created_at=row[2])
+            return TenantResponse(id=row[0], name=row[1], status=row[2] if row[2] else "active", created_at=row[3])
     except HTTPException:
         raise
     except Exception as e:

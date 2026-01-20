@@ -91,6 +91,7 @@ export interface TenantCreateResponse {
 
 export interface UpdateTenantRequest {
 	name?: string;
+	status?: 'active' | 'inactive';
 }
 
 // ============================================================

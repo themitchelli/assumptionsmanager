@@ -62,11 +62,13 @@ class TenantCreateResponse(BaseModel):
 class TenantUpdate(BaseModel):
     """Partial update for tenant settings"""
     name: str | None = None
+    status: str | None = None  # "active" or "inactive" - only super_admin can change
 
 
 class TenantResponse(BaseModel):
     id: UUID
     name: str
+    status: str = "active"  # "active" or "inactive"
     created_at: datetime
 
     class Config:

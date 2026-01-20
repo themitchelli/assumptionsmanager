@@ -12,6 +12,7 @@ class Tenant(Base):
 
     id: uuid.UUID = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: str = Column(String(255), nullable=False)
+    status: str = Column(String(20), nullable=False, default="active")
     created_at: datetime = Column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: datetime = Column(DateTime(timezone=True), default=datetime.utcnow)
 

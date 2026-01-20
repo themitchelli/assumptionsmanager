@@ -14,14 +14,17 @@
 		Button,
 		SkeletonText,
 		ToastNotification,
-		Tile
+		Tile,
+		OverflowMenu,
+		OverflowMenuItem
 	} from 'carbon-components-svelte';
 	import { Add, UserMultiple, Enterprise, Checkmark } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { api } from '$lib/api';
 	import { toasts } from '$lib/stores/toast';
-	import type { TenantListItem, TenantListResponse, PlatformStatsResponse } from '$lib/api/types';
+	import type { TenantListItem, TenantListResponse, PlatformStatsResponse, UpdateTenantRequest, TenantResponse } from '$lib/api/types';
 	import CreateTenantModal from '$lib/components/CreateTenantModal.svelte';
+	import DeactivateTenantModal from '$lib/components/DeactivateTenantModal.svelte';
 
 	// State
 	let tenants: TenantListItem[] = [];
@@ -31,6 +34,8 @@
 
 	// Modal state
 	let showCreateModal = false;
+	let showDeactivateModal = false;
+	let selectedTenant: TenantListItem | null = null;
 
 	// Filtering
 	let searchQuery = '';
@@ -184,6 +189,61 @@
 	// Get existing tenant names for duplicate checking
 	$: existingTenantNames = tenants.map((t) => t.name);
 
+	function handleDeactivateClick(tenant: TenantListItem) {
+		selectedTenant = tenant;
+		showDeactivateModal = true;
+	}
+
+	function handleDeactivateModalClose() {
+		showDeactivateModal = false;
+		selectedTenant = null;
+	}
+
+	function handleTenantDeactivated(event: CustomEvent<{ id: string; status: 'inactive' }>) {
+		const { id, status } = event.detail;
+		// Update the tenant in the list
+		tenants = tenants.map((t) => (t.id === id ? { ...t, status } : t));
+
+		// Update stats
+		if (stats) {
+			stats = {
+				...stats,
+				active_tenants: stats.active_tenants - 1
+			};
+		}
+
+		showDeactivateModal = false;
+		selectedTenant = null;
+		toasts.success('Tenant deactivated', `${tenants.find((t) => t.id === id)?.name} has been deactivated`);
+	}
+
+	async function handleReactivate(tenant: TenantListItem | undefined) {
+		if (!tenant) return;
+
+		const response = await api.patch<TenantResponse>(
+			`/tenants/${tenant.id}`,
+			{ status: 'active' } as UpdateTenantRequest
+		);
+
+		if (response.error) {
+			toasts.error('Error', response.error.message);
+			return;
+		}
+
+		// Update the tenant in the list
+		tenants = tenants.map((t) => (t.id === tenant.id ? { ...t, status: 'active' } : t));
+
+		// Update stats
+		if (stats) {
+			stats = {
+				...stats,
+				active_tenants: stats.active_tenants + 1
+			};
+		}
+
+		toasts.success('Tenant reactivated', `${tenant.name} has been reactivated`);
+	}
+
 	onMount(() => {
 		breadcrumbs.set([{ label: 'Admin', href: '/admin/users' }, { label: 'All Tenants' }]);
 		fetchData();
@@ -286,13 +346,24 @@
 						{:else if cell.key === 'status'}
 							<Tag type={row.statusDisplay.type}>{row.statusDisplay.text}</Tag>
 						{:else if cell.key === 'actions'}
-							<Button
-								kind="ghost"
-								size="small"
-								on:click={() => handleRowClick(row.id)}
-							>
-								View
-							</Button>
+							<OverflowMenu flipped size="sm">
+								<OverflowMenuItem text="View Details" on:click={() => handleRowClick(row.id)} />
+								{#if row.status === 'active'}
+									<OverflowMenuItem
+										danger
+										text="Deactivate"
+										on:click={() => {
+											const t = tenants.find((t) => t.id === row.id);
+											if (t) handleDeactivateClick(t);
+										}}
+									/>
+								{:else}
+									<OverflowMenuItem
+										text="Reactivate"
+										on:click={() => handleReactivate(tenants.find((t) => t.id === row.id))}
+									/>
+								{/if}
+							</OverflowMenu>
 						{:else}
 							{cell.value}
 						{/if}
@@ -320,6 +391,14 @@
 	{existingTenantNames}
 	on:close={handleModalClose}
 	on:created={handleTenantCreated}
+/>
+
+<!-- Deactivate Tenant Modal -->
+<DeactivateTenantModal
+	bind:open={showDeactivateModal}
+	tenant={selectedTenant}
+	on:close={handleDeactivateModalClose}
+	on:deactivated={handleTenantDeactivated}
 />
 
 <style>
