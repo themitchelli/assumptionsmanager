@@ -23,6 +23,7 @@
 	import type { UserResponse } from '$lib/api/types';
 	import AddUserModal from '$lib/components/AddUserModal.svelte';
 	import EditUserModal from '$lib/components/EditUserModal.svelte';
+	import DeleteUserModal from '$lib/components/DeleteUserModal.svelte';
 
 	// State
 	let users: UserResponse[] = [];
@@ -33,6 +34,8 @@
 	let addUserModalOpen = false;
 	let editUserModalOpen = false;
 	let editingUser: UserResponse | null = null;
+	let deleteUserModalOpen = false;
+	let deletingUser: UserResponse | null = null;
 
 	// Filtering
 	let searchQuery = '';
@@ -170,8 +173,32 @@
 	}
 
 	function handleDelete(userId: string) {
-		// TODO: Implement in US-004
-		console.log('Delete user:', userId);
+		const user = users.find((u) => u.id === userId);
+		if (user) {
+			deletingUser = user;
+			deleteUserModalOpen = true;
+		}
+	}
+
+	function handleUserDeleted(event: CustomEvent<string>) {
+		const deletedUserId = event.detail;
+
+		// Remove user from the list
+		users = users.filter((u) => u.id !== deletedUserId);
+
+		deleteUserModalOpen = false;
+		deletingUser = null;
+
+		toasts.add({
+			kind: 'success',
+			title: 'User deleted',
+			subtitle: 'The user has been removed from your organization'
+		});
+	}
+
+	function handleDeleteModalClose() {
+		deleteUserModalOpen = false;
+		deletingUser = null;
 	}
 
 	function handleAddUser() {
@@ -329,6 +356,13 @@
 	user={editingUser}
 	on:close={handleEditModalClose}
 	on:updated={handleUserUpdated}
+/>
+
+<DeleteUserModal
+	bind:open={deleteUserModalOpen}
+	user={deletingUser}
+	on:close={handleDeleteModalClose}
+	on:deleted={handleUserDeleted}
 />
 
 <style>

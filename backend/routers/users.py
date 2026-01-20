@@ -189,7 +189,7 @@ async def delete_user(
     user_id: UUID,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Delete a user (admin only)"""
+    """Delete a user (admin only, super_admin can delete admins)"""
     if current_user.role not in ("admin", "super_admin"):
         raise HTTPException(
             status_code=403,
@@ -205,15 +205,23 @@ async def delete_user(
     try:
         db = SessionLocal()
         try:
-            # Check user exists and is in same tenant
+            # Check user exists and is in same tenant, get their role
             result = db.execute(
-                text("SELECT id FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
+                text("SELECT id, role FROM users WHERE id = :user_id AND tenant_id = :tenant_id"),
                 {"user_id": str(user_id), "tenant_id": str(current_user.tenant_id)}
             )
             user = result.fetchone()
 
             if not user:
                 raise HTTPException(status_code=404, detail="User not found")
+
+            # Admins cannot delete other admins (only super_admin can)
+            target_role = user[1]
+            if target_role == "admin" and current_user.role != "super_admin":
+                raise HTTPException(
+                    status_code=403,
+                    detail="Only super admin can delete other admins"
+                )
 
             # Delete user
             db.execute(
