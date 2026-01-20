@@ -262,6 +262,39 @@ class ApprovalService:
 
         return self._row_to_dict(updated_row)
 
+    def get_history(self, version_id: UUID) -> list[dict]:
+        """Get the full approval history for a version.
+
+        Returns all state transitions in chronological order (oldest first).
+        Includes user names for display.
+
+        Returns empty list for versions with no history entries.
+        """
+        result = self.db.execute(
+            text("""
+                SELECT h.id, h.from_status, h.to_status, h.changed_by,
+                       u.email as changed_by_name, h.comment, h.created_at
+                FROM approval_history h
+                LEFT JOIN users u ON u.id = h.changed_by
+                WHERE h.version_id = :version_id
+                ORDER BY h.created_at ASC
+            """),
+            {"version_id": str(version_id)}
+        )
+        rows = result.fetchall()
+        return [
+            {
+                "id": row[0],
+                "from_status": row[1],
+                "to_status": row[2],
+                "changed_by": row[3],
+                "changed_by_name": row[4],
+                "comment": row[5],
+                "created_at": row[6]
+            }
+            for row in rows
+        ]
+
     def _row_to_dict(self, row) -> dict:
         """Convert a database row to a dictionary."""
         return {

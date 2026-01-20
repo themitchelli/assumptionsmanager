@@ -304,3 +304,17 @@ class ApproveRequest(BaseModel):
 class RejectRequest(BaseModel):
     """Request body for rejecting a version - comment is required"""
     comment: str
+
+
+class ApprovalHistoryEntry(BaseModel):
+    """Single entry in the approval history audit trail"""
+    id: UUID
+    from_status: str | None  # nullable for initial creation
+    to_status: str
+    changed_by: UUID
+    changed_by_name: str | None  # User's email/name for display
+    comment: str | None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -13,7 +13,8 @@ from schemas import (
     VersionDetailResponse, VersionRowResponse, TableDetailResponse,
     ColumnResponse, RowResponse, VersionDiffResponse, ModifiedCellResponse,
     FormattedDiffResponse, VersionMetadata, DiffSummary, ColumnSummary,
-    CellStatus, RowChange, SubmitApprovalRequest, ApproveRequest, RejectRequest
+    CellStatus, RowChange, SubmitApprovalRequest, ApproveRequest, RejectRequest,
+    ApprovalHistoryEntry
 )
 from services.versioning import VersioningService
 from services.approvals.service import ApprovalService
@@ -761,6 +762,64 @@ async def reject_version(
                 reviewed_by=version.get("reviewed_by"),
                 reviewed_at=version.get("reviewed_at")
             )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{table_id}/versions/{version_id}/history", response_model=list[ApprovalHistoryEntry])
+async def get_approval_history(
+    table_id: UUID,
+    version_id: UUID,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Get the full approval history for a version.
+
+    Returns all state transitions in chronological order (oldest first).
+    Each entry includes the status transition, who made the change, and any comment.
+
+    All roles can view approval history (viewer, analyst, admin).
+    """
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Verify version exists and belongs to this table
+            version_service = VersioningService(db)
+            version = version_service.get_version(version_id)
+
+            if not version or version["table_id"] != table_id:
+                raise HTTPException(status_code=404, detail="Version not found")
+
+            # Get approval history
+            approval_service = ApprovalService(db)
+            history = approval_service.get_history(version_id)
+
+            return [
+                ApprovalHistoryEntry(
+                    id=entry["id"],
+                    from_status=entry["from_status"],
+                    to_status=entry["to_status"],
+                    changed_by=entry["changed_by"],
+                    changed_by_name=entry["changed_by_name"],
+                    comment=entry["comment"],
+                    created_at=entry["created_at"]
+                )
+                for entry in history
+            ]
         finally:
             db.close()
     except HTTPException:
