@@ -52,6 +52,11 @@ export interface CreateTenantRequest {
 // User Management Types
 // ============================================================
 
+export interface CreateUserRequest {
+	email: string;
+	role: 'viewer' | 'analyst' | 'admin';
+}
+
 export interface UpdateUserRequest {
 	role?: 'viewer' | 'analyst' | 'admin';
 }

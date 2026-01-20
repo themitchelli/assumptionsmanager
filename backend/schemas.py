@@ -53,6 +53,12 @@ class UserRoleUpdate(BaseModel):
     role: str
 
 
+class UserCreateByAdmin(BaseModel):
+    """Admin creates a user - no password needed, system generates temp password"""
+    email: EmailStr
+    role: str = "viewer"
+
+
 # Assumption Tables schemas
 
 class ColumnDefinition(BaseModel):

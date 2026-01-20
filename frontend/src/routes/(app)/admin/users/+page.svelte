@@ -19,12 +19,17 @@
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { api } from '$lib/api';
+	import { toasts } from '$lib/stores/toast';
 	import type { UserResponse } from '$lib/api/types';
+	import AddUserModal from '$lib/components/AddUserModal.svelte';
 
 	// State
 	let users: UserResponse[] = [];
 	let loading = true;
 	let error: string | null = null;
+
+	// Modal state
+	let addUserModalOpen = false;
 
 	// Filtering
 	let searchQuery = '';
@@ -143,9 +148,22 @@
 	}
 
 	function handleAddUser() {
-		// TODO: Implement in US-002
-		console.log('Add user clicked');
+		addUserModalOpen = true;
 	}
+
+	function handleUserCreated(event: CustomEvent<UserResponse>) {
+		const newUser = event.detail;
+		users = [...users, newUser];
+		addUserModalOpen = false;
+		toasts.add({
+			kind: 'success',
+			title: 'User added',
+			subtitle: `${newUser.email} has been added to your organization`
+		});
+	}
+
+	// Get existing emails for duplicate validation in modal
+	$: existingEmails = users.map((u) => u.email);
 
 	async function fetchUsers() {
 		loading = true;
@@ -271,6 +289,13 @@
 		</Column>
 	</Row>
 </Grid>
+
+<AddUserModal
+	bind:open={addUserModalOpen}
+	{existingEmails}
+	on:close={() => (addUserModalOpen = false)}
+	on:created={handleUserCreated}
+/>
 
 <style>
 	.page-title {

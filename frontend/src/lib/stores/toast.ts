@@ -13,23 +13,25 @@ export interface Toast {
 function createToastStore() {
 	const { subscribe, update } = writable<Toast[]>([]);
 
+	const add = (toast: Omit<Toast, 'id'>) => {
+		const id = crypto.randomUUID();
+		const newToast: Toast = { ...toast, id };
+		update((toasts) => [...toasts, newToast]);
+
+		// Auto-remove after timeout (default 5 seconds)
+		const timeout = toast.timeout ?? 5000;
+		if (timeout > 0) {
+			setTimeout(() => {
+				update((toasts) => toasts.filter((t) => t.id !== id));
+			}, timeout);
+		}
+
+		return id;
+	};
+
 	return {
 		subscribe,
-		add: (toast: Omit<Toast, 'id'>) => {
-			const id = crypto.randomUUID();
-			const newToast: Toast = { ...toast, id };
-			update((toasts) => [...toasts, newToast]);
-
-			// Auto-remove after timeout (default 5 seconds)
-			const timeout = toast.timeout ?? 5000;
-			if (timeout > 0) {
-				setTimeout(() => {
-					update((toasts) => toasts.filter((t) => t.id !== id));
-				}, timeout);
-			}
-
-			return id;
-		},
+		add,
 		remove: (id: string) => {
 			update((toasts) => toasts.filter((t) => t.id !== id));
 		},
@@ -38,16 +40,16 @@ function createToastStore() {
 		},
 		// Convenience methods
 		error: (title: string, subtitle?: string) => {
-			return createToastStore().add({ kind: 'error', title, subtitle });
+			return add({ kind: 'error', title, subtitle });
 		},
 		success: (title: string, subtitle?: string) => {
-			return createToastStore().add({ kind: 'success', title, subtitle });
+			return add({ kind: 'success', title, subtitle });
 		},
 		warning: (title: string, subtitle?: string) => {
-			return createToastStore().add({ kind: 'warning', title, subtitle });
+			return add({ kind: 'warning', title, subtitle });
 		},
 		info: (title: string, subtitle?: string) => {
-			return createToastStore().add({ kind: 'info', title, subtitle });
+			return add({ kind: 'info', title, subtitle });
 		}
 	};
 }

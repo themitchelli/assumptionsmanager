@@ -1,15 +1,23 @@
+import secrets
+import string
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import text
 
 from database import SessionLocal
-from auth import get_current_user, TokenData
-from schemas import UserResponse, UserRoleUpdate
+from auth import get_current_user, TokenData, hash_password
+from schemas import UserResponse, UserRoleUpdate, UserCreateByAdmin
 
 router = APIRouter(prefix="/users", tags=["users"])
 
 VALID_ROLES = {"viewer", "analyst", "admin"}
+
+
+def generate_temp_password(length: int = 16) -> str:
+    """Generate a secure temporary password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
 @router.get("", response_model=list[UserResponse])
@@ -35,6 +43,83 @@ async def list_users(current_user: TokenData = Depends(get_current_user)):
             return users
         finally:
             db.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def create_user(
+    user_data: UserCreateByAdmin,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Create a new user in the current tenant (admin only).
+
+    Generates a temporary password for the user. In production,
+    an email would be sent with password reset instructions.
+    """
+    # Only admin or super_admin can create users
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin can create users"
+        )
+
+    # Validate role
+    if user_data.role not in VALID_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Check for duplicate email within tenant
+            result = db.execute(
+                text("SELECT id FROM users WHERE email = :email AND tenant_id = :tenant_id"),
+                {"email": user_data.email, "tenant_id": str(current_user.tenant_id)}
+            )
+            if result.fetchone():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A user with this email already exists in your organization"
+                )
+
+            # Generate temporary password
+            temp_password = generate_temp_password()
+            password_hash = hash_password(temp_password)
+
+            # Create user
+            result = db.execute(
+                text("""
+                    INSERT INTO users (tenant_id, email, password_hash, role)
+                    VALUES (:tenant_id, :email, :password_hash, :role)
+                    RETURNING id, tenant_id, email, role, created_at
+                """),
+                {
+                    "tenant_id": str(current_user.tenant_id),
+                    "email": user_data.email,
+                    "password_hash": password_hash,
+                    "role": user_data.role
+                }
+            )
+            row = result.fetchone()
+            db.commit()
+
+            # Note: In production, send email with temp_password to user_data.email
+            # For now, the user would need to use password reset flow
+
+            return UserResponse(
+                id=row[0],
+                tenant_id=row[1],
+                email=row[2],
+                role=row[3],
+                created_at=row[4]
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
