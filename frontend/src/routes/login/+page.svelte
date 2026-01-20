@@ -84,9 +84,6 @@
 
 			const data = await response.json();
 
-			// Store the token securely in sessionStorage (not localStorage per security requirements)
-			sessionStorage.setItem('auth_token', data.access_token);
-
 			// Fetch user info to populate the auth store
 			const userResponse = await fetch('/api/auth/me', {
 				headers: {
@@ -96,11 +93,12 @@
 
 			if (userResponse.ok) {
 				const user = await userResponse.json();
+				// setUser now handles sessionStorage persistence automatically
 				auth.setUser(
 					{
 						id: user.id,
 						email: user.email,
-						name: user.email.split('@')[0], // Use email prefix as name for now
+						name: user.name || user.email.split('@')[0],
 						role: user.role,
 						tenant_id: user.tenant_id
 					},
