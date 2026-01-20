@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy import text
 
 from database import engine
-from routers import auth, users, tables, versions
+from routers import auth, users, tables, versions, export
 from auth import get_current_user, TokenData
 from schemas import TenantCreate, TenantResponse
 
@@ -12,6 +12,7 @@ app.include_router(auth.router)
 app.include_router(users.router)
 app.include_router(tables.router)
 app.include_router(versions.router)
+app.include_router(export.router)
 
 
 @app.get("/")
