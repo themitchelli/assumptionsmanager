@@ -1,2 +1,11 @@
 __pycache__/
 *.pyc
+# FADE working files (keep out of version control)
+prompt.md
+progress.md
+learned.md
+FADE.md
+fade/
+prd.json
+prds/
+prd-archive/
