@@ -8,7 +8,7 @@ from database import SessionLocal
 from auth import get_current_user, TokenData
 from schemas import (
     TableCreate, TableUpdate, TableResponse, TableListResponse, TableDetailResponse,
-    ColumnResponse, RowResponse
+    ColumnResponse, RowResponse, RowsCreate, RowUpdate
 )
 
 router = APIRouter(prefix="/tables", tags=["tables"])
@@ -264,10 +264,10 @@ async def delete_table(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Delete an assumption table and all its data"""
-    if current_user.role not in WRITE_ROLES:
+    if current_user.role != "admin":
         raise HTTPException(
             status_code=403,
-            detail="Only analyst or admin can delete tables"
+            detail="Only admin can delete tables"
         )
 
     try:
@@ -290,6 +290,315 @@ async def delete_table(
             db.execute(
                 text("DELETE FROM assumption_tables WHERE id = :table_id"),
                 {"table_id": str(table_id)}
+            )
+            db.commit()
+
+            return None
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def validate_cell_value(value, data_type: str, column_name: str) -> str | None:
+    """Validate and convert cell value to string for storage. Returns None for null values."""
+    if value is None:
+        return None
+
+    try:
+        if data_type == "integer":
+            int(value)
+            return str(int(value))
+        elif data_type == "decimal":
+            float(value)
+            return str(float(value))
+        elif data_type == "boolean":
+            if isinstance(value, bool):
+                return str(value).lower()
+            if isinstance(value, str) and value.lower() in ("true", "false", "1", "0", "yes", "no"):
+                return "true" if value.lower() in ("true", "1", "yes") else "false"
+            raise ValueError("Invalid boolean")
+        elif data_type == "date":
+            # Validate date format
+            date.fromisoformat(str(value))
+            return str(value)
+        else:  # text
+            return str(value)
+    except (ValueError, TypeError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid value '{value}' for column '{column_name}' (expected {data_type})"
+        )
+
+
+@router.post("/{table_id}/rows", response_model=list[RowResponse], status_code=201)
+async def add_rows(
+    table_id: UUID,
+    data: RowsCreate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Add one or more rows to an assumption table"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can add rows"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Get column definitions for validation
+            col_result = db.execute(
+                text("""
+                    SELECT id, name, data_type FROM assumption_columns
+                    WHERE table_id = :table_id
+                """),
+                {"table_id": str(table_id)}
+            )
+            columns = {row[1]: {"id": row[0], "data_type": row[2]} for row in col_result}
+
+            if not columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Table has no columns defined"
+                )
+
+            # Get the next row_index
+            max_result = db.execute(
+                text("""
+                    SELECT COALESCE(MAX(row_index), -1) FROM assumption_rows
+                    WHERE table_id = :table_id
+                """),
+                {"table_id": str(table_id)}
+            )
+            next_index = max_result.fetchone()[0] + 1
+
+            created_rows = []
+
+            for row_data in data.rows:
+                # Validate all cell values and column names
+                validated_cells = {}
+                for col_name, value in row_data.cells.items():
+                    if col_name not in columns:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Unknown column '{col_name}'"
+                        )
+                    validated_cells[col_name] = validate_cell_value(
+                        value, columns[col_name]["data_type"], col_name
+                    )
+
+                # Insert row
+                row_result = db.execute(
+                    text("""
+                        INSERT INTO assumption_rows (table_id, row_index)
+                        VALUES (:table_id, :row_index)
+                        RETURNING id, row_index
+                    """),
+                    {"table_id": str(table_id), "row_index": next_index}
+                )
+                row = row_result.fetchone()
+                row_id = row[0]
+                row_index = row[1]
+
+                # Insert cells
+                cells_response = {}
+                for col_name, value in validated_cells.items():
+                    db.execute(
+                        text("""
+                            INSERT INTO assumption_cells (row_id, column_id, value)
+                            VALUES (:row_id, :column_id, :value)
+                        """),
+                        {
+                            "row_id": str(row_id),
+                            "column_id": str(columns[col_name]["id"]),
+                            "value": value
+                        }
+                    )
+                    # Cast back for response
+                    cells_response[col_name] = cast_cell_value(value, columns[col_name]["data_type"])
+
+                created_rows.append(RowResponse(
+                    id=row_id,
+                    row_index=row_index,
+                    cells=cells_response
+                ))
+                next_index += 1
+
+            db.commit()
+            return created_rows
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/{table_id}/rows/{row_id}", response_model=RowResponse)
+async def update_row(
+    table_id: UUID,
+    row_id: UUID,
+    data: RowUpdate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Update cell values in an existing row"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can update rows"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            table_result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not table_result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Verify row exists and belongs to this table
+            row_result = db.execute(
+                text("""
+                    SELECT id, row_index FROM assumption_rows
+                    WHERE id = :row_id AND table_id = :table_id
+                """),
+                {"row_id": str(row_id), "table_id": str(table_id)}
+            )
+            row = row_result.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Row not found")
+
+            row_index = row[1]
+
+            # Get column definitions for validation
+            col_result = db.execute(
+                text("""
+                    SELECT id, name, data_type FROM assumption_columns
+                    WHERE table_id = :table_id
+                """),
+                {"table_id": str(table_id)}
+            )
+            columns = {r[1]: {"id": r[0], "data_type": r[2]} for r in col_result}
+
+            # Validate and update cells
+            for col_name, value in data.cells.items():
+                if col_name not in columns:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Unknown column '{col_name}'"
+                    )
+
+                validated_value = validate_cell_value(
+                    value, columns[col_name]["data_type"], col_name
+                )
+
+                # Upsert cell (insert or update)
+                db.execute(
+                    text("""
+                        INSERT INTO assumption_cells (row_id, column_id, value)
+                        VALUES (:row_id, :column_id, :value)
+                        ON CONFLICT (row_id, column_id)
+                        DO UPDATE SET value = EXCLUDED.value
+                    """),
+                    {
+                        "row_id": str(row_id),
+                        "column_id": str(columns[col_name]["id"]),
+                        "value": validated_value
+                    }
+                )
+
+            db.commit()
+
+            # Fetch all cells for the row to return complete response
+            cells_result = db.execute(
+                text("""
+                    SELECT ac.name, acel.value, ac.data_type
+                    FROM assumption_cells acel
+                    JOIN assumption_columns ac ON ac.id = acel.column_id
+                    WHERE acel.row_id = :row_id
+                """),
+                {"row_id": str(row_id)}
+            )
+            cells = {
+                r[0]: cast_cell_value(r[1], r[2])
+                for r in cells_result
+            }
+
+            return RowResponse(
+                id=row_id,
+                row_index=row_index,
+                cells=cells
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{table_id}/rows/{row_id}", status_code=204)
+async def delete_row(
+    table_id: UUID,
+    row_id: UUID,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Delete a row and all its cells"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can delete rows"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            table_result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not table_result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Verify row exists and belongs to this table
+            row_result = db.execute(
+                text("""
+                    SELECT id FROM assumption_rows
+                    WHERE id = :row_id AND table_id = :table_id
+                """),
+                {"row_id": str(row_id), "table_id": str(table_id)}
+            )
+            if not row_result.fetchone():
+                raise HTTPException(status_code=404, detail="Row not found")
+
+            # Delete row (cascades to cells via FK constraint)
+            db.execute(
+                text("DELETE FROM assumption_rows WHERE id = :row_id"),
+                {"row_id": str(row_id)}
             )
             db.commit()
 

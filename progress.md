@@ -158,14 +158,58 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/routers/tables.py
 - Tests: manual API testing passed all acceptance criteria
 
-## 2026-01-20 00:06 - PRD-009: Assumption Tables CRUD - COMPLETE
+## 2026-01-20 00:15 - PRD-009 US-005: Add rows to table - COMPLETE
 
-All five user stories completed:
+- POST /tables/{id}/rows endpoint implemented
+- Accepts array of rows with column_name: value pairs
+- Validates cell values against column data_types (integer, decimal, text, date, boolean)
+- Row indices auto-assigned (append to end)
+- Returns created rows with ids and cell data
+- Requires analyst or admin role (viewer gets 403)
+- Files changed: backend/schemas.py (RowCreate, RowsCreate), backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 00:20 - PRD-009 US-006: Update row data - COMPLETE
+
+- PATCH /tables/{table_id}/rows/{row_id} endpoint implemented
+- Accepts partial updates (only specified columns updated)
+- Validates values against column data_types
+- Uses UPSERT to handle cells that may not exist yet
+- Returns updated row with all cell values
+- Requires analyst or admin role
+- Files changed: backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 00:25 - PRD-009 US-007: Delete rows - COMPLETE
+
+- DELETE /tables/{table_id}/rows/{row_id} endpoint implemented
+- Returns 204 No Content on successful deletion
+- Requires analyst or admin role
+- Cascades to delete all cells in the row via FK constraint
+- Returns 404 if row not found or table not in tenant
+- Files changed: backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 00:30 - PRD-009 US-008: Delete assumption table - COMPLETE
+
+- DELETE /tables/{id} endpoint updated to require admin role only
+- Previously allowed analyst role; now only admin can delete tables
+- Returns 204 on success, 404 if not found
+- Cascades: columns, rows, cells all deleted via FK constraints
+- Files changed: backend/routers/tables.py
+- Tests: manual API testing passed all acceptance criteria
+
+## 2026-01-20 00:30 - PRD-009: Assumption Tables CRUD - COMPLETE
+
+All eight user stories completed:
 - US-001: POST /tables - create table with columns
 - US-002: GET /tables - list tables in tenant
 - US-003: GET /tables/{id} - get table with full data
 - US-004: PATCH /tables/{id} - update table metadata
-- US-005: DELETE /tables/{id} - delete table and cascade
+- US-005: POST /tables/{id}/rows - add rows to table
+- US-006: PATCH /tables/{table_id}/rows/{row_id} - update row data
+- US-007: DELETE /tables/{table_id}/rows/{row_id} - delete rows
+- US-008: DELETE /tables/{id} - delete table (admin only)
 
-Full CRUD operations for assumption tables working with tenant isolation.
+Full CRUD operations for assumption tables and rows working with tenant isolation.
 

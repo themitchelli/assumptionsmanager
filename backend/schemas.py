@@ -132,3 +132,20 @@ class TableDetailResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# Row CRUD schemas
+
+class RowCreate(BaseModel):
+    """Single row with column_name: value pairs"""
+    cells: dict[str, str | int | float | bool | None]
+
+
+class RowsCreate(BaseModel):
+    """Request body for adding multiple rows"""
+    rows: list[RowCreate]
+
+
+class RowUpdate(BaseModel):
+    """Partial update for row cells"""
+    cells: dict[str, str | int | float | bool | None]

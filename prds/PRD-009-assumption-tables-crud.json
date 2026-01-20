@@ -125,7 +125,7 @@
         "Row indices auto-assigned (append to end)"
       ],
       "priority": 5,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-006",
@@ -139,7 +139,7 @@
         "Requires analyst or admin role"
       ],
       "priority": 6,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-007",
@@ -152,7 +152,7 @@
         "Cascades to delete all cells in the row"
       ],
       "priority": 7,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-008",
@@ -166,7 +166,7 @@
         "Returns 404 if not found or not in tenant"
       ],
       "priority": 8,
-      "passes": false
+      "passes": true
     }
   ],
   "technicalNotes": {
