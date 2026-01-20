@@ -21,8 +21,10 @@
 			<h1 class="page-title">
 				Welcome{$auth.user?.name ? `, ${$auth.user.name}` : ''}
 			</h1>
-			{#if $auth.user?.tenant_name}
-				<p class="tenant-context">Tenant: {$auth.user.tenant_name}</p>
+			{#if $auth.user?.tenant_name || $auth.user?.tenant_id}
+				<p class="tenant-context">
+					Tenant: {$auth.user.tenant_name || $auth.user.tenant_id}
+				</p>
 			{/if}
 		</Column>
 	</Row>
