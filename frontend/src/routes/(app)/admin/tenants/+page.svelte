@@ -19,13 +19,18 @@
 	import { Add, UserMultiple, Enterprise, Checkmark } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { api } from '$lib/api';
+	import { toasts } from '$lib/stores/toast';
 	import type { TenantListItem, TenantListResponse, PlatformStatsResponse } from '$lib/api/types';
+	import CreateTenantModal from '$lib/components/CreateTenantModal.svelte';
 
 	// State
 	let tenants: TenantListItem[] = [];
 	let stats: PlatformStatsResponse | null = null;
 	let loading = true;
 	let error: string | null = null;
+
+	// Modal state
+	let showCreateModal = false;
 
 	// Filtering
 	let searchQuery = '';
@@ -150,6 +155,35 @@
 		loading = false;
 	}
 
+	function handleCreateClick() {
+		showCreateModal = true;
+	}
+
+	function handleModalClose() {
+		showCreateModal = false;
+	}
+
+	function handleTenantCreated(event: CustomEvent<TenantListItem>) {
+		const newTenant = event.detail;
+		tenants = [newTenant, ...tenants];
+
+		// Update stats
+		if (stats) {
+			stats = {
+				...stats,
+				total_tenants: stats.total_tenants + 1,
+				active_tenants: stats.active_tenants + 1,
+				total_users: stats.total_users + 1
+			};
+		}
+
+		showCreateModal = false;
+		toasts.success('Tenant created', `${newTenant.name} has been created successfully`);
+	}
+
+	// Get existing tenant names for duplicate checking
+	$: existingTenantNames = tenants.map((t) => t.name);
+
 	onMount(() => {
 		breadcrumbs.set([{ label: 'Admin', href: '/admin/users' }, { label: 'All Tenants' }]);
 		fetchData();
@@ -230,7 +264,7 @@
 				<div class="empty-state">
 					<h3>No tenants found</h3>
 					<p>Create your first tenant to get started.</p>
-					<Button icon={Add}>Create Tenant</Button>
+					<Button icon={Add} on:click={handleCreateClick}>Create Tenant</Button>
 				</div>
 			{:else}
 				<DataTable {headers} {rows} sortable on:click:header={handleSort} size="medium">
@@ -241,7 +275,7 @@
 								placeholder="Search tenants..."
 								persistent
 							/>
-							<Button icon={Add}>Create Tenant</Button>
+							<Button icon={Add} on:click={handleCreateClick}>Create Tenant</Button>
 						</ToolbarContent>
 					</Toolbar>
 					<svelte:fragment slot="cell" let:row let:cell>
@@ -279,6 +313,14 @@
 		</Column>
 	</Row>
 </Grid>
+
+<!-- Create Tenant Modal -->
+<CreateTenantModal
+	bind:open={showCreateModal}
+	{existingTenantNames}
+	on:close={handleModalClose}
+	on:created={handleTenantCreated}
+/>
 
 <style>
 	.page-title {

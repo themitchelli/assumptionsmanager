@@ -3,8 +3,10 @@ from sqlalchemy import text
 
 from database import engine
 from routers import auth, users, tables, versions, export, imports
-from auth import get_current_user, TokenData
-from schemas import TenantCreate, TenantResponse, TenantUpdate, TenantListResponse, TenantListItemResponse, PlatformStatsResponse, TenantDetailResponse
+from auth import get_current_user, TokenData, hash_password
+from schemas import TenantCreate, TenantResponse, TenantUpdate, TenantListResponse, TenantListItemResponse, PlatformStatsResponse, TenantDetailResponse, TenantCreateWithAdmin, TenantCreateResponse
+import secrets
+import string
 from uuid import UUID
 
 app = FastAPI(title="Assumptions Manager", version="0.1.0")
@@ -132,26 +134,104 @@ async def get_tenant(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/tenants", response_model=TenantResponse, status_code=201)
+def generate_temp_password(length: int = 16) -> str:
+    """Generate a secure temporary password"""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+@app.post("/tenants", response_model=TenantCreateResponse, status_code=201)
 async def create_tenant(
-    tenant: TenantCreate,
+    tenant: TenantCreateWithAdmin,
     current_user: TokenData = Depends(get_current_user)
 ):
-    """Create a new tenant (super_admin only)"""
+    """Create a new tenant with initial admin user (super_admin only).
+
+    Creates the tenant and an admin user in a single transaction.
+    In production, the admin would receive an email with login instructions.
+    """
     if current_user.role != "super_admin":
         raise HTTPException(
             status_code=403,
-            detail="Only super_admin can access this endpoint"
+            detail="Only super_admin can create tenants"
         )
+
+    # Validate tenant name length
+    if len(tenant.name.strip()) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant name must be at least 2 characters"
+        )
+    if len(tenant.name) > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="Tenant name must be less than 100 characters"
+        )
+
     try:
         with engine.connect() as conn:
-            result = conn.execute(
-                text("INSERT INTO tenants (name) VALUES (:name) RETURNING id, name, created_at"),
-                {"name": tenant.name}
+            # Check tenant name uniqueness
+            name_check = conn.execute(
+                text("SELECT id FROM tenants WHERE LOWER(name) = LOWER(:name)"),
+                {"name": tenant.name.strip()}
             )
+            if name_check.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail="A tenant with this name already exists"
+                )
+
+            # Check admin email uniqueness (globally, not just within tenant)
+            email_check = conn.execute(
+                text("SELECT id FROM users WHERE LOWER(email) = LOWER(:email)"),
+                {"email": tenant.admin_email}
+            )
+            if email_check.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail="A user with this email already exists"
+                )
+
+            # Create tenant
+            tenant_result = conn.execute(
+                text("INSERT INTO tenants (name) VALUES (:name) RETURNING id, name, created_at"),
+                {"name": tenant.name.strip()}
+            )
+            tenant_row = tenant_result.fetchone()
+            tenant_id = tenant_row[0]
+
+            # Generate temporary password and create admin user
+            temp_password = generate_temp_password()
+            password_hash = hash_password(temp_password)
+
+            user_result = conn.execute(
+                text("""
+                    INSERT INTO users (tenant_id, email, password_hash, role)
+                    VALUES (:tenant_id, :email, :password_hash, 'admin')
+                    RETURNING id, email
+                """),
+                {
+                    "tenant_id": str(tenant_id),
+                    "email": tenant.admin_email,
+                    "password_hash": password_hash
+                }
+            )
+            user_row = user_result.fetchone()
+
             conn.commit()
-            row = result.fetchone()
-            return TenantResponse(id=row[0], name=row[1], created_at=row[2])
+
+            # Note: In production, send welcome email to admin_email with temp_password
+            # or a password reset link
+
+            return TenantCreateResponse(
+                id=tenant_row[0],
+                name=tenant_row[1],
+                created_at=tenant_row[2],
+                admin_id=user_row[0],
+                admin_email=user_row[1]
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

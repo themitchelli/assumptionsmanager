@@ -40,6 +40,25 @@ class TenantCreate(BaseModel):
     name: str
 
 
+class TenantCreateWithAdmin(BaseModel):
+    """Create tenant with initial admin user"""
+    name: str
+    admin_email: EmailStr
+    admin_name: str
+
+
+class TenantCreateResponse(BaseModel):
+    """Response after creating tenant with admin"""
+    id: UUID
+    name: str
+    created_at: datetime
+    admin_id: UUID
+    admin_email: str
+
+    class Config:
+        from_attributes = True
+
+
 class TenantUpdate(BaseModel):
     """Partial update for tenant settings"""
     name: str | None = None

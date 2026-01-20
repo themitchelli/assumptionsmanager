@@ -75,6 +75,20 @@ export interface CreateTenantRequest {
 	name: string;
 }
 
+export interface CreateTenantWithAdminRequest {
+	name: string;
+	admin_email: string;
+	admin_name: string;
+}
+
+export interface TenantCreateResponse {
+	id: string;
+	name: string;
+	created_at: string;
+	admin_id: string;
+	admin_email: string;
+}
+
 export interface UpdateTenantRequest {
 	name?: string;
 }
