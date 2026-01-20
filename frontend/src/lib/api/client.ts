@@ -13,8 +13,28 @@ import { browser } from '$app/environment';
 import { goto } from '$app/navigation';
 import { auth } from '$lib/stores/auth';
 
-// Base URL configurable via environment variable
-const API_BASE_URL = '/api';
+/**
+ * Base URL configurable via environment variable (PUBLIC_API_BASE_URL)
+ * Falls back to '/api' for development with Vite proxy
+ *
+ * Set in .env file:
+ *   PUBLIC_API_BASE_URL=https://api.example.com
+ *
+ * Or leave unset to use default '/api' (proxied by Vite in dev)
+ */
+function getApiBaseUrl(): string {
+	// Try to get from environment (works in both dev and production)
+	try {
+		// Dynamic import to handle missing env var gracefully
+		const envUrl = import.meta.env.PUBLIC_API_BASE_URL;
+		if (envUrl) return envUrl;
+	} catch {
+		// Env var not defined, use default
+	}
+	return '/api';
+}
+
+const API_BASE_URL = getApiBaseUrl();
 
 export interface ApiError {
 	status: number;
