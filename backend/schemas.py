@@ -54,6 +54,43 @@ class TenantResponse(BaseModel):
         from_attributes = True
 
 
+class TenantListItemResponse(BaseModel):
+    """Extended tenant info for admin list view"""
+    id: UUID
+    name: str
+    user_count: int
+    status: str = "active"  # "active" or "inactive"
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TenantListResponse(BaseModel):
+    """Response containing list of tenants with stats"""
+    tenants: list[TenantListItemResponse]
+
+
+class PlatformStatsResponse(BaseModel):
+    """Platform-wide statistics for super_admin dashboard"""
+    total_tenants: int
+    active_tenants: int
+    total_users: int
+
+
+class TenantDetailResponse(BaseModel):
+    """Detailed tenant info for super_admin view"""
+    id: UUID
+    name: str
+    user_count: int
+    status: str = "active"  # "active" or "inactive"
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+
 class UserRoleUpdate(BaseModel):
     role: str
 

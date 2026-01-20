@@ -16,7 +16,7 @@
 	// Note: /admin/tenant (singular) is for tenant settings (admin access)
 	// /admin/tenants (plural) is for all tenants list (super_admin only)
 	const adminRoutes = ['/admin/users', '/admin/tenant'];
-	const superAdminRoutes = ['/admin/tenants'];
+	const superAdminRoutes = ['/admin/tenants'];  // Also protects /admin/tenants/[id] via startsWith
 
 	$: currentPath = $page.url.pathname;
 

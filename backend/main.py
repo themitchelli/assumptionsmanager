@@ -4,7 +4,7 @@ from sqlalchemy import text
 from database import engine
 from routers import auth, users, tables, versions, export, imports
 from auth import get_current_user, TokenData
-from schemas import TenantCreate, TenantResponse, TenantUpdate
+from schemas import TenantCreate, TenantResponse, TenantUpdate, TenantListResponse, TenantListItemResponse, PlatformStatsResponse, TenantDetailResponse
 from uuid import UUID
 
 app = FastAPI(title="Assumptions Manager", version="0.1.0")
@@ -32,9 +32,9 @@ async def health():
         raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
 
 
-@app.get("/tenants")
+@app.get("/tenants", response_model=TenantListResponse)
 async def list_tenants(current_user: TokenData = Depends(get_current_user)):
-    """List all tenants (super_admin only)"""
+    """List all tenants with user counts (super_admin only)"""
     if current_user.role != "super_admin":
         raise HTTPException(
             status_code=403,
@@ -42,12 +42,92 @@ async def list_tenants(current_user: TokenData = Depends(get_current_user)):
         )
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT id, name, created_at FROM tenants"))
+            # Get tenants with user counts via LEFT JOIN
+            result = conn.execute(text("""
+                SELECT t.id, t.name, t.created_at, COUNT(u.id) as user_count
+                FROM tenants t
+                LEFT JOIN users u ON u.tenant_id = t.id
+                GROUP BY t.id, t.name, t.created_at
+                ORDER BY t.created_at DESC
+            """))
             tenants = [
-                {"id": str(row[0]), "name": row[1], "created_at": str(row[2])}
+                TenantListItemResponse(
+                    id=row[0],
+                    name=row[1],
+                    created_at=row[2],
+                    user_count=row[3],
+                    status="active"  # All tenants are active for now (deactivation in US-008)
+                )
                 for row in result
             ]
-        return {"tenants": tenants}
+        return TenantListResponse(tenants=tenants)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tenants/stats", response_model=PlatformStatsResponse)
+async def get_platform_stats(current_user: TokenData = Depends(get_current_user)):
+    """Get platform-wide statistics (super_admin only)"""
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only super_admin can access this endpoint"
+        )
+    try:
+        with engine.connect() as conn:
+            # Get tenant count
+            tenant_result = conn.execute(text("SELECT COUNT(*) FROM tenants"))
+            total_tenants = tenant_result.fetchone()[0]
+
+            # Get user count
+            user_result = conn.execute(text("SELECT COUNT(*) FROM users"))
+            total_users = user_result.fetchone()[0]
+
+            # For now, all tenants are active (deactivation feature in US-008)
+            active_tenants = total_tenants
+
+        return PlatformStatsResponse(
+            total_tenants=total_tenants,
+            active_tenants=active_tenants,
+            total_users=total_users
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/tenants/{tenant_id}", response_model=TenantDetailResponse)
+async def get_tenant(
+    tenant_id: UUID,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Get a single tenant with details (super_admin only)"""
+    if current_user.role != "super_admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only super_admin can access this endpoint"
+        )
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT t.id, t.name, t.created_at, t.updated_at, COUNT(u.id) as user_count
+                FROM tenants t
+                LEFT JOIN users u ON u.tenant_id = t.id
+                WHERE t.id = :tenant_id
+                GROUP BY t.id, t.name, t.created_at, t.updated_at
+            """), {"tenant_id": str(tenant_id)})
+            row = result.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Tenant not found")
+            return TenantDetailResponse(
+                id=row[0],
+                name=row[1],
+                created_at=row[2],
+                updated_at=row[3],
+                user_count=row[4],
+                status="active"  # All tenants are active for now (deactivation in US-008)
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

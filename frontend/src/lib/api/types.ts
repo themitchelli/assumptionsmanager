@@ -44,6 +44,33 @@ export interface TenantResponse {
 	created_at: string;
 }
 
+export interface TenantListItem {
+	id: string;
+	name: string;
+	user_count: number;
+	status: 'active' | 'inactive';
+	created_at: string;
+}
+
+export interface TenantListResponse {
+	tenants: TenantListItem[];
+}
+
+export interface PlatformStatsResponse {
+	total_tenants: number;
+	active_tenants: number;
+	total_users: number;
+}
+
+export interface TenantDetailResponse {
+	id: string;
+	name: string;
+	user_count: number;
+	status: 'active' | 'inactive';
+	created_at: string;
+	updated_at?: string;
+}
+
 export interface CreateTenantRequest {
 	name: string;
 }
