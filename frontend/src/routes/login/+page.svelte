@@ -17,9 +17,15 @@
 	let emailError = '';
 	let isSubmitting = false;
 	let errorMessage = '';
+	let successMessage = '';
 
 	// Get the return URL from query params if present
 	$: returnUrl = $page.url.searchParams.get('returnUrl') || '/dashboard';
+
+	// Check if user just registered
+	$: if ($page.url.searchParams.get('registered') === 'true') {
+		successMessage = 'Account created successfully. Please sign in.';
+	}
 
 	function validateEmail(value: string): boolean {
 		if (!value) {
@@ -126,6 +132,16 @@
 	<Tile class="login-tile">
 		<h1>Assumptions Manager</h1>
 		<h2>Sign in to your account</h2>
+
+		{#if successMessage}
+			<InlineNotification
+				lowContrast
+				kind="success"
+				title="Success"
+				subtitle={successMessage}
+				on:close={() => (successMessage = '')}
+			/>
+		{/if}
 
 		{#if errorMessage}
 			<InlineNotification
