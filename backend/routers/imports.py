@@ -31,6 +31,18 @@ WRITE_ROLES = {"analyst", "admin"}
 IMPORT_TIMEOUT = 300
 
 
+def _raise_value_error(e: ValueError):
+    """Convert ValueError to appropriate HTTP exception.
+
+    Returns 413 Payload Too Large for file size errors,
+    400 Bad Request for other validation errors.
+    """
+    error_msg = str(e)
+    if "exceeds maximum" in error_msg.lower():
+        raise HTTPException(status_code=413, detail=error_msg)
+    raise HTTPException(status_code=400, detail=error_msg)
+
+
 @router.post("/import/csv", response_model=ImportResultResponse, status_code=201)
 async def create_table_from_csv(
     file: UploadFile = File(...),
@@ -100,7 +112,7 @@ async def create_table_from_csv(
         finally:
             db.close()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_value_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -163,7 +175,7 @@ async def preview_csv_import(
         finally:
             db.close()
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_value_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -242,6 +254,6 @@ async def import_csv_to_table(
     except HTTPException:
         raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        _raise_value_error(e)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
