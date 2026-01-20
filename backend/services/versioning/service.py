@@ -170,11 +170,14 @@ class VersioningService:
             LEFT JOIN version_approvals va ON va.version_id = v.id
             WHERE v.table_id = :table_id
         """
-        params = {"table_id": str(table_id)}
+        params: dict = {"table_id": str(table_id)}
 
         if status_filter:
-            query += " AND COALESCE(va.status, 'draft') = ANY(:statuses)"
-            params["statuses"] = status_filter
+            # Use IN clause with dynamically generated placeholders
+            placeholders = ", ".join([f":status_{i}" for i in range(len(status_filter))])
+            query += f" AND COALESCE(va.status, 'draft') IN ({placeholders})"
+            for i, status in enumerate(status_filter):
+                params[f"status_{i}"] = status
 
         query += " ORDER BY v.version_number DESC"
 

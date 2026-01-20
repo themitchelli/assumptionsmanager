@@ -2,7 +2,7 @@ from uuid import UUID
 import csv
 import io
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 
@@ -380,12 +380,31 @@ async def export_diff_csv(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+VALID_APPROVAL_STATUSES = {"draft", "submitted", "approved", "rejected"}
+
+
 @router.get("/{table_id}/versions", response_model=list[VersionListResponse])
 async def list_versions(
     table_id: UUID,
+    status: list[str] | None = Query(default=None),
     current_user: TokenData = Depends(get_current_user)
 ):
-    """List all versions of a table, newest first"""
+    """List all versions of a table, newest first.
+
+    Query parameters:
+    - status: Optional approval status filter. Can be specified multiple times
+              to filter by multiple statuses (e.g., ?status=submitted&status=rejected).
+              Valid values: draft, submitted, approved, rejected
+    """
+    # Validate status values if provided
+    if status:
+        invalid_statuses = [s for s in status if s not in VALID_APPROVAL_STATUSES]
+        if invalid_statuses:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid status values: {', '.join(invalid_statuses)}. Valid values: draft, submitted, approved, rejected"
+            )
+
     try:
         db = SessionLocal()
         try:
@@ -401,7 +420,7 @@ async def list_versions(
                 raise HTTPException(status_code=404, detail="Table not found")
 
             service = VersioningService(db)
-            versions = service.list_versions(table_id)
+            versions = service.list_versions(table_id, status_filter=status)
 
             return [
                 VersionListResponse(
@@ -410,7 +429,8 @@ async def list_versions(
                     comment=v["comment"],
                     created_by=v["created_by"],
                     created_by_name=v["created_by_name"],
-                    created_at=v["created_at"]
+                    created_at=v["created_at"],
+                    approval_status=v["approval_status"]
                 )
                 for v in versions
             ]

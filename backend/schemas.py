@@ -179,6 +179,7 @@ class VersionListResponse(BaseModel):
     created_by: UUID
     created_by_name: str
     created_at: datetime
+    approval_status: str = "draft"  # "draft", "submitted", "approved", "rejected"
 
     class Config:
         from_attributes = True
