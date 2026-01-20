@@ -128,6 +128,69 @@ class ApprovalService:
 
         return self._row_to_dict(updated_row)
 
+    def approve(
+        self,
+        version_id: UUID,
+        user_id: UUID,
+        comment: str | None = None
+    ) -> dict:
+        """Approve a submitted version.
+
+        Transitions status from submitted to approved.
+        Records the reviewer and timestamp.
+        Creates audit trail entry in approval_history.
+
+        Returns the updated approval record.
+        Raises ValueError if current status is not submitted.
+        """
+        # Get current approval status
+        current = self.get_approval_status(version_id)
+        if not current:
+            raise ValueError("Approval record not found for this version")
+
+        from_status = current["status"]
+
+        # Validate state transition
+        if from_status != "submitted":
+            raise ValueError(
+                f"Cannot approve version: current status is '{from_status}'. "
+                "Only submitted versions can be approved."
+            )
+
+        # Update approval status
+        result = self.db.execute(
+            text("""
+                UPDATE version_approvals
+                SET status = 'approved',
+                    reviewed_by = :user_id,
+                    reviewed_at = NOW(),
+                    updated_at = NOW()
+                WHERE version_id = :version_id
+                RETURNING id, version_id, status, submitted_by, submitted_at,
+                          reviewed_by, reviewed_at, created_at, updated_at
+            """),
+            {"version_id": str(version_id), "user_id": str(user_id)}
+        )
+        updated_row = result.fetchone()
+
+        # Create approval history entry
+        self.db.execute(
+            text("""
+                INSERT INTO approval_history
+                    (version_id, from_status, to_status, changed_by, comment)
+                VALUES
+                    (:version_id, :from_status, 'approved', :user_id, :comment)
+            """),
+            {
+                "version_id": str(version_id),
+                "from_status": from_status,
+                "user_id": str(user_id),
+                "comment": comment
+            }
+        )
+
+        return self._row_to_dict(updated_row)
+
     def _row_to_dict(self, row) -> dict:
         """Convert a database row to a dictionary."""
         return {

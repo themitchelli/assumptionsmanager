@@ -13,7 +13,7 @@ from schemas import (
     VersionDetailResponse, VersionRowResponse, TableDetailResponse,
     ColumnResponse, RowResponse, VersionDiffResponse, ModifiedCellResponse,
     FormattedDiffResponse, VersionMetadata, DiffSummary, ColumnSummary,
-    CellStatus, RowChange, SubmitApprovalRequest
+    CellStatus, RowChange, SubmitApprovalRequest, ApproveRequest
 )
 from services.versioning import VersioningService
 from services.approvals.service import ApprovalService
@@ -532,6 +532,100 @@ async def submit_version_for_approval(
             comment = data.comment if data else None
             try:
                 approval_service.submit_for_approval(
+                    version_id=version_id,
+                    user_id=current_user.user_id,
+                    comment=comment
+                )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+
+            db.commit()
+
+            # Fetch updated version with approval status
+            version = version_service.get_version(version_id)
+            cells = version_service.get_version_data(version_id, table_id)
+
+            # Group cells by row_index
+            rows_dict: dict[int, dict[str, str | int | float | bool | None]] = {}
+            for cell in cells:
+                row_idx = cell["row_index"]
+                if row_idx not in rows_dict:
+                    rows_dict[row_idx] = {}
+                rows_dict[row_idx][cell["column_name"]] = cell["value"]
+
+            rows = [
+                VersionRowResponse(row_index=idx, cells=cell_data)
+                for idx, cell_data in sorted(rows_dict.items())
+            ]
+
+            return VersionDetailResponse(
+                id=version["id"],
+                version_number=version["version_number"],
+                comment=version["comment"],
+                created_by=version["created_by"],
+                created_by_name=version.get("created_by_email"),
+                created_at=version["created_at"],
+                rows=rows,
+                approval_status=version.get("approval_status", "draft"),
+                submitted_by=version.get("submitted_by"),
+                submitted_at=version.get("submitted_at"),
+                reviewed_by=version.get("reviewed_by"),
+                reviewed_at=version.get("reviewed_at")
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{table_id}/versions/{version_id}/approve", response_model=VersionDetailResponse)
+async def approve_version(
+    table_id: UUID,
+    version_id: UUID,
+    data: ApproveRequest | None = None,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Approve a submitted version.
+
+    Only admin users can approve versions.
+    Transitions status from submitted to approved.
+    Records the reviewer and timestamp.
+    Creates an entry in approval_history for audit trail.
+    """
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin can approve versions"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Verify version exists and belongs to this table
+            version_service = VersioningService(db)
+            version = version_service.get_version(version_id)
+
+            if not version or version["table_id"] != table_id:
+                raise HTTPException(status_code=404, detail="Version not found")
+
+            # Approve the version
+            approval_service = ApprovalService(db)
+            comment = data.comment if data else None
+            try:
+                approval_service.approve(
                     version_id=version_id,
                     user_id=current_user.user_id,
                     comment=comment

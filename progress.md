@@ -283,3 +283,17 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/schemas.py (SubmitApprovalRequest), backend/services/approvals/service.py (submit_for_approval method), backend/routers/versions.py (submit endpoint)
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:36 - PRD-012 US-003: Approve version - COMPLETE
+
+- POST /tables/{id}/versions/{version_id}/approve endpoint implemented
+- Transitions status from submitted to approved (admin only)
+- Request body optional: comment field for approval notes
+- Records reviewed_by (current user) and reviewed_at timestamp
+- Creates entry in approval_history with from_status=submitted, to_status=approved
+- Returns 200 with updated version including new approval status
+- Returns 400 if version is not in submitted status
+- Returns 403 if user role is not admin
+- Returns 404 if version or table not found
+- Files changed: backend/schemas.py (ApproveRequest), backend/services/approvals/service.py (approve method), backend/routers/versions.py (approve endpoint)
+- Tests: manual API testing passed all acceptance criteria
+

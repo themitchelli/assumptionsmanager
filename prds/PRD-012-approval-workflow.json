@@ -128,7 +128,7 @@
         "Returns 404 if version or table not found"
       ],
       "priority": 3,
-      "passes": false
+      "passes": true
     },
     {
       "id": "US-004",
