@@ -297,3 +297,18 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/schemas.py (ApproveRequest), backend/services/approvals/service.py (approve method), backend/routers/versions.py (approve endpoint)
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:45 - PRD-012 US-004: Reject version - COMPLETE
+
+- POST /tables/{id}/versions/{version_id}/reject endpoint implemented
+- Transitions status from submitted to rejected (admin only)
+- Request body required: comment field for rejection reason (helps analyst understand what to fix)
+- Records reviewed_by (current user) and reviewed_at timestamp
+- Creates entry in approval_history with from_status=submitted, to_status=rejected
+- Returns 200 with updated version including new approval status
+- Returns 400 if version is not in submitted status
+- Returns 400 if comment is missing or empty (422 for missing, 400 for empty)
+- Returns 403 if user role is not admin
+- Returns 404 if version or table not found
+- Files changed: backend/schemas.py (RejectRequest), backend/services/approvals/service.py (reject method), backend/routers/versions.py (reject endpoint)
+- Tests: manual API testing passed all acceptance criteria
+

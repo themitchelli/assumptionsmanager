@@ -299,3 +299,8 @@ class SubmitApprovalRequest(BaseModel):
 class ApproveRequest(BaseModel):
     """Request body for approving a version"""
     comment: str | None = None
+
+
+class RejectRequest(BaseModel):
+    """Request body for rejecting a version - comment is required"""
+    comment: str
