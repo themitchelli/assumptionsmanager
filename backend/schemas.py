@@ -289,3 +289,8 @@ class ApprovalStatus(BaseModel):
     submitted_at: datetime | None = None
     reviewed_by: UUID | None = None
     reviewed_at: datetime | None = None
+
+
+class SubmitApprovalRequest(BaseModel):
+    """Request body for submitting a version for approval"""
+    comment: str | None = None

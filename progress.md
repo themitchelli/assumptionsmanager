@@ -268,3 +268,18 @@ Tests: manual API testing passed all acceptance criteria
 - Files changed: backend/init.sql, backend/schemas.py, backend/services/versioning/service.py, backend/routers/versions.py
 - Tests: manual API testing passed all acceptance criteria
 
+## 2026-01-20 10:32 - PRD-012 US-002: Submit version for approval - COMPLETE
+
+- POST /tables/{id}/versions/{version_id}/submit endpoint implemented
+- Transitions status from draft to submitted (or rejected to submitted for resubmission)
+- Request body optional: comment field for submission notes
+- Records submitted_by (current user) and submitted_at timestamp
+- Clears reviewed_by and reviewed_at on resubmission
+- Creates entry in approval_history with from_status and to_status
+- Returns 200 with updated version including new approval status
+- Returns 400 if version is not in draft or rejected status
+- Returns 403 if user role is viewer (only analyst/admin can submit)
+- Returns 404 if version or table not found
+- Files changed: backend/schemas.py (SubmitApprovalRequest), backend/services/approvals/service.py (submit_for_approval method), backend/routers/versions.py (submit endpoint)
+- Tests: manual API testing passed all acceptance criteria
+

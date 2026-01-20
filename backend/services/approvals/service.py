@@ -62,6 +62,72 @@ class ApprovalService:
             return existing
         return self.create_approval_record(version_id)
 
+    def submit_for_approval(
+        self,
+        version_id: UUID,
+        user_id: UUID,
+        comment: str | None = None
+    ) -> dict:
+        """Submit a version for approval.
+
+        Transitions status from draft or rejected to submitted.
+        Records the submitter and timestamp.
+        Creates audit trail entry in approval_history.
+
+        Returns the updated approval record.
+        Raises ValueError if current status is not draft or rejected.
+        """
+        # Get current approval status
+        current = self.get_approval_status(version_id)
+        if not current:
+            # Create approval record if missing (handles migration)
+            current = self.create_approval_record(version_id)
+
+        from_status = current["status"]
+
+        # Validate state transition
+        if from_status not in ("draft", "rejected"):
+            raise ValueError(
+                f"Cannot submit version: current status is '{from_status}'. "
+                "Only draft or rejected versions can be submitted."
+            )
+
+        # Update approval status
+        result = self.db.execute(
+            text("""
+                UPDATE version_approvals
+                SET status = 'submitted',
+                    submitted_by = :user_id,
+                    submitted_at = NOW(),
+                    reviewed_by = NULL,
+                    reviewed_at = NULL,
+                    updated_at = NOW()
+                WHERE version_id = :version_id
+                RETURNING id, version_id, status, submitted_by, submitted_at,
+                          reviewed_by, reviewed_at, created_at, updated_at
+            """),
+            {"version_id": str(version_id), "user_id": str(user_id)}
+        )
+        updated_row = result.fetchone()
+
+        # Create approval history entry
+        self.db.execute(
+            text("""
+                INSERT INTO approval_history
+                    (version_id, from_status, to_status, changed_by, comment)
+                VALUES
+                    (:version_id, :from_status, 'submitted', :user_id, :comment)
+            """),
+            {
+                "version_id": str(version_id),
+                "from_status": from_status,
+                "user_id": str(user_id),
+                "comment": comment
+            }
+        )
+
+        return self._row_to_dict(updated_row)
+
     def _row_to_dict(self, row) -> dict:
         """Convert a database row to a dictionary."""
         return {
