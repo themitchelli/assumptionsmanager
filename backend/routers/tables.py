@@ -188,14 +188,16 @@ async def get_table(
             row_indices = {str(r[0]): r[1] for r in row_ids_data}
 
             # Fetch cells only for the paginated rows
-            # Using ANY instead of IN for better performance with UUIDs
+            # Build IN clause with placeholders
+            placeholders = ", ".join([f":row_id_{i}" for i in range(len(row_ids))])
+            params = {f"row_id_{i}": row_id for i, row_id in enumerate(row_ids)}
             cells_result = db.execute(
-                text("""
+                text(f"""
                     SELECT c.row_id, c.column_id, c.value
                     FROM assumption_cells c
-                    WHERE c.row_id = ANY(:row_ids::uuid[])
+                    WHERE c.row_id IN ({placeholders})
                 """),
-                {"row_ids": row_ids}
+                params
             )
 
             # Group cells by row
