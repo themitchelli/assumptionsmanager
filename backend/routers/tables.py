@@ -89,9 +89,21 @@ def cast_cell_value(value: str | None, data_type: str):
 @router.get("/{table_id}", response_model=TableDetailResponse)
 async def get_table(
     table_id: UUID,
-    current_user: TokenData = Depends(get_current_user)
+    current_user: TokenData = Depends(get_current_user),
+    offset: int = 0,
+    limit: int = 100
 ):
-    """Get a complete assumption table including all rows and cells"""
+    """Get an assumption table with paginated rows.
+
+    Args:
+        table_id: The table UUID
+        offset: Number of rows to skip (default 0)
+        limit: Maximum rows to return (default 100, max 1000)
+    """
+    # Clamp limit to reasonable bounds
+    limit = min(max(1, limit), 1000)
+    offset = max(0, offset)
+
     try:
         db = SessionLocal()
         try:
@@ -133,34 +145,70 @@ async def get_table(
                 column_types[str(col_row[0])] = col_row[2]
                 column_names[str(col_row[0])] = col_row[1]
 
-            # Fetch rows with cells
-            row_result = db.execute(
-                text("""
-                    SELECT r.id, r.row_index, c.column_id, c.value
-                    FROM assumption_rows r
-                    LEFT JOIN assumption_cells c ON c.row_id = r.id
-                    WHERE r.table_id = :table_id
-                    ORDER BY r.row_index, c.column_id
-                """),
+            # Get total row count for pagination
+            count_result = db.execute(
+                text("SELECT COUNT(*) FROM assumption_rows WHERE table_id = :table_id"),
                 {"table_id": str(table_id)}
+            )
+            total_rows = count_result.fetchone()[0]
+
+            # Fetch paginated row IDs first (efficient query)
+            row_ids_result = db.execute(
+                text("""
+                    SELECT id, row_index
+                    FROM assumption_rows
+                    WHERE table_id = :table_id
+                    ORDER BY row_index
+                    LIMIT :limit OFFSET :offset
+                """),
+                {"table_id": str(table_id), "limit": limit, "offset": offset}
+            )
+            row_ids_data = list(row_ids_result)
+
+            if not row_ids_data:
+                # No rows in this page
+                return TableDetailResponse(
+                    id=table_row[0],
+                    tenant_id=table_row[1],
+                    name=table_row[2],
+                    description=table_row[3],
+                    effective_date=str(table_row[4]) if table_row[4] else None,
+                    created_by=table_row[5],
+                    created_at=table_row[6],
+                    updated_at=table_row[7],
+                    columns=columns,
+                    rows=[],
+                    total_rows=total_rows,
+                    offset=offset,
+                    limit=limit
+                )
+
+            # Build row_id list for IN clause
+            row_ids = [str(r[0]) for r in row_ids_data]
+            row_indices = {str(r[0]): r[1] for r in row_ids_data}
+
+            # Fetch cells only for the paginated rows
+            # Using ANY instead of IN for better performance with UUIDs
+            cells_result = db.execute(
+                text("""
+                    SELECT c.row_id, c.column_id, c.value
+                    FROM assumption_cells c
+                    WHERE c.row_id = ANY(:row_ids::uuid[])
+                """),
+                {"row_ids": row_ids}
             )
 
             # Group cells by row
-            rows_dict = {}
-            for row in row_result:
-                row_id = str(row[0])
-                if row_id not in rows_dict:
-                    rows_dict[row_id] = {
-                        "id": row[0],
-                        "row_index": row[1],
-                        "cells": {}
-                    }
-                if row[2]:  # column_id exists (has cell data)
-                    col_id = str(row[2])
-                    col_name = column_names.get(col_id)
-                    col_type = column_types.get(col_id, "text")
-                    if col_name:
-                        rows_dict[row_id]["cells"][col_name] = cast_cell_value(row[3], col_type)
+            rows_dict = {row_id: {"id": row_id, "row_index": row_indices[row_id], "cells": {}}
+                        for row_id in row_ids}
+
+            for cell_row in cells_result:
+                row_id = str(cell_row[0])
+                col_id = str(cell_row[1])
+                col_name = column_names.get(col_id)
+                col_type = column_types.get(col_id, "text")
+                if col_name and row_id in rows_dict:
+                    rows_dict[row_id]["cells"][col_name] = cast_cell_value(cell_row[2], col_type)
 
             rows = [
                 RowResponse(
@@ -181,7 +229,10 @@ async def get_table(
                 created_at=table_row[6],
                 updated_at=table_row[7],
                 columns=columns,
-                rows=rows
+                rows=rows,
+                total_rows=total_rows,
+                offset=offset,
+                limit=limit
             )
         finally:
             db.close()

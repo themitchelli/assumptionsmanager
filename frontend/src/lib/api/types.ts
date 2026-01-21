@@ -178,6 +178,10 @@ export interface RowResponse {
 export interface TableDetailResponse extends TableListResponse {
 	columns: ColumnResponse[];
 	rows: RowResponse[];
+	// Pagination metadata (present when paginated)
+	total_rows?: number;
+	offset?: number;
+	limit?: number;
 }
 
 export interface CreateRowsRequest {

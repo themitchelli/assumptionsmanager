@@ -12,7 +12,8 @@
 		SkeletonText,
 		SkeletonPlaceholder,
 		ToastNotification,
-		Checkbox
+		Checkbox,
+		Pagination
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Calendar, Time, Add, RowInsert, TrashCan, RecentlyViewed } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
@@ -32,6 +33,12 @@
 	let table: TableDetailResponse | null = null;
 	let loading = true;
 	let error: string | null = null;
+
+	// Pagination state
+	let currentPage = 1;
+	let pageSize = 100;
+	let totalRows = 0;
+	$: totalPages = Math.ceil(totalRows / pageSize);
 
 	// Modal state
 	let showAddColumnModal = false;
@@ -122,15 +129,20 @@
 		goto('/tables');
 	}
 
-	// Fetch table data
-	async function fetchTable() {
+	// Fetch table data with pagination
+	async function fetchTable(page: number = 1, limit: number = pageSize) {
 		loading = true;
 		error = null;
-		const response = await api.get<TableDetailResponse>(`/tables/${tableId}`);
+		const offset = (page - 1) * limit;
+		const response = await api.get<TableDetailResponse>(`/tables/${tableId}?offset=${offset}&limit=${limit}`);
 		if (response.error) {
 			error = response.error.message;
 		} else if (response.data) {
 			table = response.data;
+			// Update pagination state from response
+			if (response.data.total_rows !== undefined) {
+				totalRows = response.data.total_rows;
+			}
 			// Update breadcrumbs with actual table name
 			breadcrumbs.set([
 				{ label: 'Tables', href: '/tables' },
@@ -138,6 +150,14 @@
 			]);
 		}
 		loading = false;
+	}
+
+	// Handle page change
+	function handlePageChange(event: CustomEvent<{ page: number; pageSize: number }>) {
+		currentPage = event.detail.page;
+		pageSize = event.detail.pageSize;
+		clearSelection();
+		fetchTable(currentPage, pageSize);
 	}
 
 	// Format date for display
@@ -889,13 +909,34 @@
 			</Column>
 		</Row>
 
+		<!-- Pagination -->
+		{#if totalRows > 0}
+			<Row>
+				<Column>
+					<div class="pagination-container">
+						<Pagination
+							bind:page={currentPage}
+							bind:pageSize={pageSize}
+							totalItems={totalRows}
+							pageSizes={[50, 100, 250, 500]}
+							on:change={handlePageChange}
+						/>
+					</div>
+				</Column>
+			</Row>
+		{/if}
+
 		<!-- Summary info -->
 		<Row>
 			<Column>
 				<div class="summary-info">
 					<span>{sortedColumns.length} column{sortedColumns.length !== 1 ? 's' : ''}</span>
 					<span class="separator">•</span>
-					<span>{table.rows.length} row{table.rows.length !== 1 ? 's' : ''}</span>
+					<span>{totalRows} total row{totalRows !== 1 ? 's' : ''}</span>
+					{#if totalRows > pageSize}
+						<span class="separator">•</span>
+						<span>Showing {table.rows.length} on this page</span>
+					{/if}
 				</div>
 			</Column>
 		</Row>
@@ -1152,6 +1193,12 @@
 
 	.separator {
 		margin: 0 0.5rem;
+	}
+
+	.pagination-container {
+		margin-top: 1rem;
+		display: flex;
+		justify-content: center;
 	}
 
 	/* Editable cell styles */

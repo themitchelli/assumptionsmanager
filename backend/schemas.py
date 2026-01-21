@@ -208,6 +208,10 @@ class TableDetailResponse(BaseModel):
     updated_at: datetime
     columns: list[ColumnResponse]
     rows: list[RowResponse]
+    # Pagination metadata
+    total_rows: int | None = None  # Total row count (when paginated)
+    offset: int | None = None  # Current offset
+    limit: int | None = None  # Page size
 
     class Config:
         from_attributes = True
