@@ -71,7 +71,7 @@ function logError(method: string, url: string, error: ApiError) {
 /**
  * Get the current auth token from sessionStorage
  */
-function getAuthToken(): string | null {
+export function getAuthToken(): string | null {
 	if (browser) {
 		return sessionStorage.getItem('auth_token');
 	}

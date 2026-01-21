@@ -28,10 +28,12 @@
 		ChevronDown,
 		ChevronUp,
 		Filter,
-		Close
+		Close,
+		Download
 	} from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
-	import { api } from '$lib/api';
+	import { toasts } from '$lib/stores/toast';
+	import { api, getAuthToken } from '$lib/api';
 	import type { FormattedDiffResponse, TableListResponse, RowChange, DiffCell, ColumnResponse } from '$lib/api/types';
 
 	// Get route params
@@ -51,6 +53,9 @@
 	let allColumns: string[] = [];
 	let selectedColumnIds: string[] = [];
 	let filterLoading = false;
+
+	// Export state
+	let exportLoading = false;
 
 	// Toggle row expansion for full context
 	function toggleRowExpansion(rowIndex: number) {
@@ -251,6 +256,62 @@
 	// Navigate back
 	function handleBack() {
 		goto(`/tables/${tableId}/versions`);
+	}
+
+	// Export diff as CSV
+	async function handleExportCsv() {
+		if (!v1 || !v2) return;
+
+		exportLoading = true;
+
+		try {
+			// Build export URL with current filters
+			let exportUrl = `/api/tables/${tableId}/versions/diff/export?v1=${v1}&v2=${v2}&format=csv`;
+			if (selectedColumnIds.length > 0) {
+				exportUrl += `&columns=${encodeURIComponent(selectedColumnIds.join(','))}`;
+			}
+
+			// Fetch the CSV file with auth header
+			const token = getAuthToken();
+			const response = await fetch(exportUrl, {
+				headers: {
+					'Authorization': `Bearer ${token}`
+				}
+			});
+
+			if (!response.ok) {
+				const errorData = await response.json().catch(() => ({}));
+				throw new Error(errorData.detail || `Export failed: ${response.statusText}`);
+			}
+
+			// Get filename from Content-Disposition header or generate default
+			const contentDisposition = response.headers.get('Content-Disposition');
+			let filename = `diff_v${diff?.version_a?.version_number || 'a'}_v${diff?.version_b?.version_number || 'b'}.csv`;
+			if (contentDisposition) {
+				const match = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+				if (match && match[1]) {
+					filename = match[1].replace(/['"]/g, '');
+				}
+			}
+
+			// Create download
+			const blob = await response.blob();
+			const url = window.URL.createObjectURL(blob);
+			const link = document.createElement('a');
+			link.href = url;
+			link.download = filename;
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+			window.URL.revokeObjectURL(url);
+
+			toasts.success('Export complete', `Downloaded ${filename}`);
+		} catch (err) {
+			const message = err instanceof Error ? err.message : 'Failed to export diff';
+			toasts.error('Export failed', message);
+		} finally {
+			exportLoading = false;
+		}
 	}
 
 	// Initialize from URL params
@@ -483,12 +544,27 @@
 							<InlineLoading description="Updating..." />
 						{/if}
 					</div>
-					{#if hasActiveFilters}
-						<div class="filter-status">
-							<Filter size={16} />
-							<span>Showing {selectedColumnIds.length} of {allColumns.length} columns</span>
-						</div>
-					{/if}
+					<div class="filter-actions">
+						{#if hasActiveFilters}
+							<div class="filter-status">
+								<Filter size={16} />
+								<span>Showing {selectedColumnIds.length} of {allColumns.length} columns</span>
+							</div>
+						{/if}
+						<Button
+							kind="tertiary"
+							size="small"
+							icon={Download}
+							on:click={handleExportCsv}
+							disabled={exportLoading || diff?.summary?.total_changes === 0}
+						>
+							{#if exportLoading}
+								<InlineLoading description="Exporting..." />
+							{:else}
+								Export CSV
+							{/if}
+						</Button>
+					</div>
 				</div>
 			</Column>
 		</Row>
@@ -814,6 +890,21 @@
 
 	.filter-status :global(svg) {
 		color: var(--cds-icon-secondary, #525252);
+	}
+
+	.filter-actions {
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		flex-wrap: wrap;
+	}
+
+	.filter-actions :global(.bx--btn) {
+		min-width: auto;
+	}
+
+	.filter-actions :global(.bx--inline-loading) {
+		min-height: auto;
 	}
 
 	.stats-grid {
