@@ -22,11 +22,13 @@
 		Subtract,
 		Edit,
 		User,
-		Calendar
+		Calendar,
+		ChevronDown,
+		ChevronUp
 	} from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { api } from '$lib/api';
-	import type { FormattedDiffResponse, TableListResponse } from '$lib/api/types';
+	import type { FormattedDiffResponse, TableListResponse, RowChange, DiffCell } from '$lib/api/types';
 
 	// Get route params
 	$: tableId = $page.params.id;
@@ -38,6 +40,82 @@
 	let tableName = '';
 	let loading = true;
 	let error: string | null = null;
+	let expandedRows: Set<number> = new Set();
+
+	// Toggle row expansion for full context
+	function toggleRowExpansion(rowIndex: number) {
+		if (expandedRows.has(rowIndex)) {
+			expandedRows.delete(rowIndex);
+		} else {
+			expandedRows.add(rowIndex);
+		}
+		expandedRows = expandedRows; // Trigger reactivity
+	}
+
+	// Check if a row is expanded
+	function isRowExpanded(rowIndex: number): boolean {
+		return expandedRows.has(rowIndex);
+	}
+
+	// Get change type label and tag type
+	function getChangeTypeInfo(type: string): { label: string; tagType: 'green' | 'red' | 'purple' } {
+		switch (type) {
+			case 'row_added':
+				return { label: 'Added', tagType: 'green' };
+			case 'row_removed':
+				return { label: 'Removed', tagType: 'red' };
+			case 'row_modified':
+				return { label: 'Modified', tagType: 'purple' };
+			default:
+				return { label: type, tagType: 'purple' };
+		}
+	}
+
+	// Get column names from column_summary
+	$: columnNames = diff?.column_summary?.map((c) => c.column_name) || [];
+
+	// Get cell data for a row change
+	function getCellValue(
+		change: RowChange,
+		columnName: string
+	): { value: unknown; oldValue?: unknown; newValue?: unknown; status: string } | null {
+		// For added/removed rows, cells is a dict of values
+		if (change.type === 'row_added' || change.type === 'row_removed') {
+			const cells = change.cells as Record<string, unknown>;
+			return {
+				value: cells[columnName] ?? null,
+				status: change.type === 'row_added' ? 'added' : 'removed'
+			};
+		}
+
+		// For modified rows, cells is an array of CellStatus
+		if (Array.isArray(change.cells)) {
+			const cell = change.cells.find((c: DiffCell) => c.column_name === columnName);
+			if (cell) {
+				return {
+					value: cell.value ?? cell.new_value ?? null,
+					oldValue: cell.old_value,
+					newValue: cell.new_value,
+					status: cell.status
+				};
+			}
+		}
+
+		return null;
+	}
+
+	// Format cell value for display
+	function formatCellValue(value: unknown): string {
+		if (value === null || value === undefined) return '—';
+		if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+		if (typeof value === 'number') {
+			if (Number.isInteger(value)) {
+				return value.toLocaleString();
+			}
+			return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 });
+		}
+		return String(value);
+	}
 
 	// Format dates
 	function formatDate(dateStr: string): string {
@@ -369,13 +447,121 @@
 			</Row>
 		{/if}
 
-		<!-- Placeholder for cell-level diff (US-005) -->
-		{#if diff.summary.total_changes > 0}
+		<!-- Cell-level diff table -->
+		{#if diff.summary.total_changes > 0 && diff.changes.length > 0}
 			<Row>
 				<Column>
-					<div class="cell-diff-placeholder">
-						<p>Cell-level diff view will be implemented in the next story.</p>
-						<p class="change-count">{diff.changes.length} row{diff.changes.length !== 1 ? 's' : ''} with changes</p>
+					<h3 class="section-title">Changed Rows</h3>
+					<p class="section-subtitle">{diff.changes.length} row{diff.changes.length !== 1 ? 's' : ''} with changes</p>
+
+					<div class="diff-table-container">
+						<table class="diff-table">
+							<thead>
+								<tr>
+									<th class="expand-col"></th>
+									<th class="row-index-col">Row</th>
+									<th class="change-type-col">Change</th>
+									{#each columnNames as colName}
+										<th class="data-col">{colName}</th>
+									{/each}
+								</tr>
+							</thead>
+							<tbody>
+								{#each diff.changes as change}
+									{@const changeInfo = getChangeTypeInfo(change.type)}
+									{@const isExpanded = isRowExpanded(change.row_index)}
+									<tr
+										class="change-row change-row-{change.type}"
+										class:expanded={isExpanded}
+									>
+										<td class="expand-col">
+											<button
+												class="expand-button"
+												on:click={() => toggleRowExpansion(change.row_index)}
+												aria-label={isExpanded ? 'Collapse row' : 'Expand row'}
+											>
+												{#if isExpanded}
+													<ChevronUp size={16} />
+												{:else}
+													<ChevronDown size={16} />
+												{/if}
+											</button>
+										</td>
+										<td class="row-index-col">
+											<span class="row-index">{change.row_index}</span>
+										</td>
+										<td class="change-type-col">
+											<Tag type={changeInfo.tagType} size="sm">{changeInfo.label}</Tag>
+										</td>
+										{#each columnNames as colName}
+											{@const cellData = getCellValue(change, colName)}
+											<td
+												class="data-col"
+												class:cell-added={cellData?.status === 'added'}
+												class:cell-removed={cellData?.status === 'removed'}
+												class:cell-modified={cellData?.status === 'modified'}
+												class:cell-unchanged={cellData?.status === 'unchanged'}
+											>
+												{#if cellData}
+													{#if cellData.status === 'modified'}
+														<div class="cell-diff">
+															<span class="old-value">{formatCellValue(cellData.oldValue)}</span>
+															<span class="arrow">→</span>
+															<span class="new-value">{formatCellValue(cellData.newValue)}</span>
+														</div>
+													{:else}
+														<span class="cell-value">{formatCellValue(cellData.value)}</span>
+													{/if}
+												{:else}
+													<span class="cell-empty">—</span>
+												{/if}
+											</td>
+										{/each}
+									</tr>
+
+									<!-- Expanded row detail -->
+									{#if isExpanded}
+										<tr class="expanded-row-detail">
+											<td colspan={columnNames.length + 3}>
+												<div class="expanded-content">
+													<h4>Row {change.row_index} - Full Context</h4>
+													<div class="expanded-cells-grid">
+														{#each columnNames as colName}
+															{@const cellData = getCellValue(change, colName)}
+															<div class="expanded-cell" class:has-change={cellData?.status !== 'unchanged'}>
+																<span class="expanded-cell-label">{colName}</span>
+																{#if cellData}
+																	{#if cellData.status === 'modified'}
+																		<div class="expanded-cell-values">
+																			<span class="expanded-old-value">
+																				<span class="value-label">Old:</span>
+																				{formatCellValue(cellData.oldValue)}
+																			</span>
+																			<span class="expanded-new-value">
+																				<span class="value-label">New:</span>
+																				{formatCellValue(cellData.newValue)}
+																			</span>
+																		</div>
+																	{:else if cellData.status === 'added'}
+																		<span class="expanded-cell-value status-added">{formatCellValue(cellData.value)}</span>
+																	{:else if cellData.status === 'removed'}
+																		<span class="expanded-cell-value status-removed">{formatCellValue(cellData.value)}</span>
+																	{:else}
+																		<span class="expanded-cell-value status-unchanged">{formatCellValue(cellData.value)}</span>
+																	{/if}
+																{:else}
+																	<span class="expanded-cell-value">—</span>
+																{/if}
+															</div>
+														{/each}
+													</div>
+												</div>
+											</td>
+										</tr>
+									{/if}
+								{/each}
+							</tbody>
+						</table>
 					</div>
 				</Column>
 			</Row>
@@ -558,6 +744,12 @@
 	.section-title {
 		font-size: 1.125rem;
 		font-weight: 600;
+		margin-bottom: 0.25rem;
+	}
+
+	.section-subtitle {
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary, #525252);
 		margin-bottom: 1rem;
 	}
 
@@ -619,23 +811,244 @@
 		font-style: italic;
 	}
 
-	/* Cell diff placeholder */
-	.cell-diff-placeholder {
-		padding: 2rem;
-		background: var(--cds-layer-01, #f4f4f4);
-		border-radius: 4px;
-		text-align: center;
+	/* Cell-level diff table */
+	.diff-table-container {
+		overflow-x: auto;
 		margin-top: 1rem;
+		border: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+		border-radius: 4px;
 	}
 
-	.cell-diff-placeholder p {
-		color: var(--cds-text-secondary, #525252);
-		margin: 0;
+	.diff-table {
+		width: 100%;
+		border-collapse: collapse;
+		font-size: 0.875rem;
 	}
 
-	.cell-diff-placeholder .change-count {
+	.diff-table thead {
+		position: sticky;
+		top: 0;
+		z-index: 1;
+	}
+
+	.diff-table th {
+		background: var(--cds-layer-accent-01, #e0e0e0);
+		padding: 0.75rem;
+		text-align: left;
+		font-weight: 600;
+		white-space: nowrap;
+		border-bottom: 1px solid var(--cds-border-subtle-01, #c6c6c6);
+	}
+
+	.diff-table td {
+		padding: 0.5rem 0.75rem;
+		border-bottom: 1px solid var(--cds-border-subtle-01, #e0e0e0);
+		vertical-align: middle;
+	}
+
+	.expand-col {
+		width: 40px;
+		text-align: center;
+	}
+
+	.expand-button {
+		background: none;
+		border: none;
+		padding: 0.25rem;
+		cursor: pointer;
+		border-radius: 4px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--cds-icon-primary, #161616);
+	}
+
+	.expand-button:hover {
+		background: var(--cds-layer-hover-01, #e8e8e8);
+	}
+
+	.row-index-col {
+		width: 60px;
+		text-align: center;
+	}
+
+	.row-index {
+		font-variant-numeric: tabular-nums;
 		font-weight: 500;
-		margin-top: 0.5rem;
+	}
+
+	.change-type-col {
+		width: 100px;
+	}
+
+	.data-col {
+		min-width: 120px;
+		max-width: 250px;
+	}
+
+	/* Row styling based on change type */
+	.change-row-row_added {
+		background: rgba(36, 161, 72, 0.05);
+	}
+
+	.change-row-row_removed {
+		background: rgba(218, 30, 40, 0.05);
+	}
+
+	.change-row-row_modified {
+		background: var(--cds-layer-01, #f4f4f4);
+	}
+
+	.change-row:hover {
+		background: var(--cds-layer-hover-01, #e8e8e8);
+	}
+
+	.change-row.expanded {
+		background: var(--cds-layer-02, #e0e0e0);
+	}
+
+	/* Cell styling based on status */
+	.cell-added {
+		background: rgba(36, 161, 72, 0.15);
+	}
+
+	.cell-removed {
+		background: rgba(218, 30, 40, 0.15);
+		text-decoration: line-through;
+		color: var(--cds-support-error, #da1e28);
+	}
+
+	.cell-modified {
+		background: rgba(241, 194, 27, 0.15);
+	}
+
+	.cell-unchanged {
+		color: var(--cds-text-secondary, #525252);
+	}
+
+	.cell-value {
+		display: block;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.cell-empty {
+		color: var(--cds-text-placeholder, #a8a8a8);
+	}
+
+	/* Modified cell diff display */
+	.cell-diff {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.old-value {
+		text-decoration: line-through;
+		color: var(--cds-support-error, #da1e28);
+		font-size: 0.8125rem;
+	}
+
+	.new-value {
+		color: var(--cds-support-success, #24a148);
+		font-weight: 500;
+	}
+
+	.arrow {
+		color: var(--cds-text-secondary, #525252);
+		font-size: 0.75rem;
+		display: none;
+	}
+
+	/* Expanded row detail */
+	.expanded-row-detail {
+		background: var(--cds-layer-01, #f4f4f4);
+	}
+
+	.expanded-row-detail td {
+		padding: 0;
+	}
+
+	.expanded-content {
+		padding: 1rem;
+		border-left: 4px solid var(--cds-border-interactive, #0f62fe);
+	}
+
+	.expanded-content h4 {
+		font-size: 0.875rem;
+		font-weight: 600;
+		margin-bottom: 0.75rem;
+	}
+
+	.expanded-cells-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 0.75rem;
+	}
+
+	.expanded-cell {
+		padding: 0.5rem;
+		background: var(--cds-layer-02, #e0e0e0);
+		border-radius: 4px;
+	}
+
+	.expanded-cell.has-change {
+		border-left: 3px solid var(--cds-support-info, #0043ce);
+	}
+
+	.expanded-cell-label {
+		display: block;
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary, #525252);
+		margin-bottom: 0.25rem;
+		text-transform: uppercase;
+		letter-spacing: 0.5px;
+	}
+
+	.expanded-cell-value {
+		font-size: 0.875rem;
+	}
+
+	.expanded-cell-value.status-added {
+		color: var(--cds-support-success, #24a148);
+		font-weight: 500;
+	}
+
+	.expanded-cell-value.status-removed {
+		color: var(--cds-support-error, #da1e28);
+		text-decoration: line-through;
+	}
+
+	.expanded-cell-value.status-unchanged {
+		color: var(--cds-text-secondary, #525252);
+	}
+
+	.expanded-cell-values {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.expanded-old-value,
+	.expanded-new-value {
+		font-size: 0.875rem;
+	}
+
+	.expanded-old-value {
+		color: var(--cds-support-error, #da1e28);
+		text-decoration: line-through;
+	}
+
+	.expanded-new-value {
+		color: var(--cds-support-success, #24a148);
+		font-weight: 500;
+	}
+
+	.value-label {
+		font-size: 0.75rem;
+		color: var(--cds-text-secondary, #525252);
+		margin-right: 0.25rem;
 	}
 
 	/* Responsive */
