@@ -16,7 +16,7 @@
 		Tooltip,
 		Dropdown
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt, Checkmark } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -25,6 +25,7 @@
 	import CreateSnapshotModal from '$lib/components/CreateSnapshotModal.svelte';
 	import RestoreVersionModal from '$lib/components/RestoreVersionModal.svelte';
 	import SubmitForApprovalModal from '$lib/components/SubmitForApprovalModal.svelte';
+	import ApproveVersionModal from '$lib/components/ApproveVersionModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -56,6 +57,11 @@
 		$auth.user?.role === 'admin' ||
 		$auth.user?.role === 'super_admin';
 
+	// Approve - admin and super_admin only
+	$: canApprove =
+		$auth.user?.role === 'admin' ||
+		$auth.user?.role === 'super_admin';
+
 	// Selection state for comparison
 	let selectedVersionIds: string[] = [];
 	$: canCompare = selectedVersionIds.length === 2;
@@ -66,6 +72,8 @@
 	let restoreVersion: VersionListResponse | null = null;
 	let showSubmitModal = false;
 	let submitVersion: VersionListResponse | null = null;
+	let showApproveModal = false;
+	let approveVersion: VersionListResponse | null = null;
 
 	// Status filter state
 	let statusFilter: string = 'all';
@@ -342,6 +350,27 @@
 		submitVersion = null;
 	}
 
+	// Open approve modal
+	function handleApprove(version: VersionListResponse) {
+		approveVersion = version;
+		showApproveModal = true;
+	}
+
+	// Handle version approved
+	function handleVersionApproved(_event: CustomEvent<VersionListResponse>) {
+		toasts.success('Version approved', `Version ${approveVersion?.version_number} has been approved`);
+		showApproveModal = false;
+		approveVersion = null;
+		// Refresh the version list to show updated status
+		fetchVersions();
+	}
+
+	// Handle approve modal close
+	function handleApproveModalClose() {
+		showApproveModal = false;
+		approveVersion = null;
+	}
+
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
@@ -590,6 +619,20 @@
 											Submit
 										</Button>
 									{/if}
+									{#if canApprove && version && version.approval_status === 'submitted'}
+										<Button
+											kind="ghost"
+											size="small"
+											icon={Checkmark}
+											iconDescription="Approve this version"
+											on:click={(e) => {
+												e.stopPropagation();
+												handleApprove(version);
+											}}
+										>
+											Approve
+										</Button>
+									{/if}
 								</div>
 							{:else}
 								{cell.value}
@@ -672,6 +715,21 @@
 		versionNumber={submitVersion.version_number}
 		on:submitted={handleVersionSubmitted}
 		on:close={handleSubmitModalClose}
+	/>
+{/if}
+
+<!-- Approve Version Modal -->
+{#if approveVersion}
+	<ApproveVersionModal
+		bind:open={showApproveModal}
+		{tableId}
+		{tableName}
+		versionId={approveVersion.id}
+		versionNumber={approveVersion.version_number}
+		submittedBy={approveVersion.submitted_by_name}
+		submittedAt={approveVersion.submitted_at}
+		on:approved={handleVersionApproved}
+		on:close={handleApproveModalClose}
 	/>
 {/if}
 
