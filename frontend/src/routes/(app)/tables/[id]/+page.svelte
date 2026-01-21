@@ -14,7 +14,7 @@
 		ToastNotification,
 		Checkbox
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Calendar, Time, Add, RowInsert } from 'carbon-icons-svelte';
+	import { ArrowLeft, Calendar, Time, Add, RowInsert, TrashCan } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -22,6 +22,7 @@
 	import type { TableDetailResponse, ColumnResponse, RowResponse, CellData } from '$lib/api/types';
 	import AddColumnModal from '$lib/components/AddColumnModal.svelte';
 	import AddMultipleRowsModal from '$lib/components/AddMultipleRowsModal.svelte';
+	import DeleteRowsModal from '$lib/components/DeleteRowsModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -34,9 +35,16 @@
 	// Modal state
 	let showAddColumnModal = false;
 	let showAddMultipleRowsModal = false;
+	let showDeleteRowsModal = false;
 
 	// Row creation state
 	let addingRow = false;
+
+	// Row selection state
+	let selectedRowIds: Set<string> = new Set();
+	$: selectedRowCount = selectedRowIds.size;
+	$: allRowsSelected = table !== null && table.rows.length > 0 && selectedRowIds.size === table.rows.length;
+	$: someRowsSelected = selectedRowIds.size > 0 && !allRowsSelected;
 
 	// Inline editing state
 	let editingCell: { rowId: string; columnName: string } | null = null;
@@ -51,6 +59,58 @@
 
 	// Get existing column names for validation
 	$: existingColumnNames = table?.columns.map((c) => c.name) || [];
+
+	// Row selection functions
+	function toggleRowSelection(rowId: string) {
+		if (selectedRowIds.has(rowId)) {
+			selectedRowIds.delete(rowId);
+		} else {
+			selectedRowIds.add(rowId);
+		}
+		selectedRowIds = selectedRowIds; // Trigger reactivity
+	}
+
+	function toggleAllRows() {
+		if (!table) return;
+		if (allRowsSelected) {
+			// Deselect all
+			selectedRowIds = new Set();
+		} else {
+			// Select all
+			selectedRowIds = new Set(table.rows.map((r) => r.id));
+		}
+	}
+
+	function clearSelection() {
+		selectedRowIds = new Set();
+	}
+
+	// Get selected rows for delete modal
+	$: selectedRows = table?.rows.filter((r) => selectedRowIds.has(r.id)) || [];
+
+	// Handle delete rows modal
+	function handleOpenDeleteRowsModal() {
+		if (selectedRowCount === 0) return;
+		showDeleteRowsModal = true;
+	}
+
+	async function handleRowsDeleted(event: CustomEvent<string[]>) {
+		const deletedIds = event.detail;
+		if (table) {
+			// Remove deleted rows from table
+			table = {
+				...table,
+				rows: table.rows.filter((r) => !deletedIds.includes(r.id))
+			};
+		}
+		// Clear selection
+		clearSelection();
+		showDeleteRowsModal = false;
+		toasts.success(
+			'Rows deleted',
+			`${deletedIds.length} row${deletedIds.length !== 1 ? 's' : ''} deleted successfully`
+		);
+	}
 
 	// Fetch table data
 	async function fetchTable() {
@@ -530,29 +590,46 @@
 						<h1 class="table-name">{table.name}</h1>
 						{#if canEdit}
 							<div class="header-actions">
-								<Button
-									kind="tertiary"
-									icon={RowInsert}
-									on:click={handleAddRow}
-									disabled={addingRow || sortedColumns.length === 0}
-								>
-									{addingRow ? 'Adding...' : 'Add Row'}
-								</Button>
-								<Button
-									kind="ghost"
-									size="small"
-									on:click={() => (showAddMultipleRowsModal = true)}
-									disabled={addingRow || sortedColumns.length === 0}
-								>
-									Add Multiple
-								</Button>
-								<Button
-									kind="primary"
-									icon={Add}
-									on:click={() => (showAddColumnModal = true)}
-								>
-									Add Column
-								</Button>
+								{#if selectedRowCount > 0}
+									<Button
+										kind="danger"
+										icon={TrashCan}
+										on:click={handleOpenDeleteRowsModal}
+									>
+										Delete Selected ({selectedRowCount})
+									</Button>
+									<Button
+										kind="ghost"
+										size="small"
+										on:click={clearSelection}
+									>
+										Clear Selection
+									</Button>
+								{:else}
+									<Button
+										kind="tertiary"
+										icon={RowInsert}
+										on:click={handleAddRow}
+										disabled={addingRow || sortedColumns.length === 0}
+									>
+										{addingRow ? 'Adding...' : 'Add Row'}
+									</Button>
+									<Button
+										kind="ghost"
+										size="small"
+										on:click={() => (showAddMultipleRowsModal = true)}
+										disabled={addingRow || sortedColumns.length === 0}
+									>
+										Add Multiple
+									</Button>
+									<Button
+										kind="primary"
+										icon={Add}
+										on:click={() => (showAddColumnModal = true)}
+									>
+										Add Column
+									</Button>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -622,6 +699,11 @@
 							<table class="data-grid">
 								<thead>
 									<tr>
+										{#if canEdit}
+											<th class="checkbox-header">
+												<!-- No select-all for empty table -->
+											</th>
+										{/if}
 										<th class="row-index-header">#</th>
 										{#each sortedColumns as column}
 											<th class="column-header">
@@ -637,7 +719,7 @@
 								</thead>
 								<tbody>
 									<tr>
-										<td colspan={sortedColumns.length + 1} class="empty-rows">
+										<td colspan={sortedColumns.length + (canEdit ? 2 : 1)} class="empty-rows">
 											<div class="empty-rows-content">
 												<p>No data rows. Add rows to enter data.</p>
 												{#if canEdit}
@@ -663,6 +745,17 @@
 							<table class="data-grid">
 								<thead>
 									<tr>
+										{#if canEdit}
+											<th class="checkbox-header">
+												<Checkbox
+													checked={allRowsSelected}
+													indeterminate={someRowsSelected}
+													on:change={toggleAllRows}
+													labelText="Select all rows"
+													hideLabel
+												/>
+											</th>
+										{/if}
 										<th class="row-index-header">#</th>
 										{#each sortedColumns as column}
 											<th class="column-header">
@@ -678,7 +771,17 @@
 								</thead>
 								<tbody>
 									{#each table.rows as row}
-										<tr>
+										<tr class:selected-row={selectedRowIds.has(row.id)}>
+											{#if canEdit}
+												<td class="checkbox-cell">
+													<Checkbox
+														checked={selectedRowIds.has(row.id)}
+														on:change={() => toggleRowSelection(row.id)}
+														labelText="Select row {row.row_index}"
+														hideLabel
+													/>
+												</td>
+											{/if}
 											<td class="row-index-cell">{row.row_index}</td>
 											{#each sortedColumns as column}
 												{@const cellValue = row.cells[column.name]}
@@ -787,6 +890,15 @@
 	tableId={tableId}
 	on:close={() => (showAddMultipleRowsModal = false)}
 	on:created={handleMultipleRowsCreated}
+/>
+
+<!-- Delete Rows Modal -->
+<DeleteRowsModal
+	bind:open={showDeleteRowsModal}
+	tableId={tableId}
+	rows={selectedRows}
+	on:close={() => (showDeleteRowsModal = false)}
+	on:deleted={handleRowsDeleted}
 />
 
 <style>
@@ -1073,5 +1185,40 @@
 	.cell-input.number-input {
 		appearance: textfield;
 		-moz-appearance: textfield;
+	}
+
+	/* Checkbox column styles */
+	.checkbox-header,
+	.checkbox-cell {
+		width: 48px;
+		min-width: 48px;
+		max-width: 48px;
+		padding: 0.5rem;
+		text-align: center;
+		background: var(--cds-layer-accent-01, #e0e0e0);
+	}
+
+	.checkbox-cell {
+		background: inherit;
+	}
+
+	/* Selected row highlight */
+	.data-grid tbody tr.selected-row {
+		background: var(--cds-layer-selected-01, #e0e0e0);
+	}
+
+	.data-grid tbody tr.selected-row:hover {
+		background: var(--cds-layer-selected-hover-01, #d1d1d1);
+	}
+
+	/* Checkbox alignment in cells */
+	.checkbox-header :global(.bx--checkbox-wrapper),
+	.checkbox-cell :global(.bx--checkbox-wrapper) {
+		justify-content: center;
+	}
+
+	.checkbox-header :global(.bx--checkbox-label),
+	.checkbox-cell :global(.bx--checkbox-label) {
+		padding-left: 0;
 	}
 </style>
