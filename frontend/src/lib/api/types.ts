@@ -41,6 +41,7 @@ export interface UserResponse {
 export interface TenantResponse {
 	id: string;
 	name: string;
+	status?: string;
 	created_at: string;
 }
 

@@ -95,10 +95,24 @@ async function handleUnauthorized() {
 async function parseErrorResponse(response: Response): Promise<ApiError> {
 	try {
 		const data = await response.json();
+		// Handle FastAPI validation errors (detail is an array of error objects)
+		// Handle FastAPI error strings (detail is a string)
+		// Handle generic error objects (message field)
+		let message: string;
+		if (typeof data.detail === 'string') {
+			message = data.detail;
+		} else if (Array.isArray(data.detail)) {
+			// FastAPI validation error format: [{msg: string, loc: string[], ...}]
+			message = data.detail.map((e: { msg?: string }) => e.msg || 'Validation error').join(', ');
+		} else if (typeof data.message === 'string') {
+			message = data.message;
+		} else {
+			message = response.statusText || 'An error occurred';
+		}
 		return {
 			status: response.status,
-			message: data.detail || data.message || response.statusText,
-			detail: data.detail
+			message,
+			detail: typeof data.detail === 'string' ? data.detail : undefined
 		};
 	} catch {
 		return {

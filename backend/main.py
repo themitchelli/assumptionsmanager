@@ -101,6 +101,32 @@ async def get_platform_stats(current_user: TokenData = Depends(get_current_user)
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# NOTE: /tenants/me must be defined BEFORE /tenants/{tenant_id} to avoid route conflict
+# FastAPI matches routes in definition order, and {tenant_id} would capture "me" as a UUID otherwise
+@app.get("/tenants/me", response_model=TenantResponse)
+async def get_current_tenant(current_user: TokenData = Depends(get_current_user)):
+    """Get the current user's tenant details (admin/super_admin only)"""
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin can access tenant settings"
+        )
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("SELECT id, name, created_at FROM tenants WHERE id = :tenant_id"),
+                {"tenant_id": str(current_user.tenant_id)}
+            )
+            row = result.fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Tenant not found")
+            return TenantResponse(id=row[0], name=row[1], created_at=row[2])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/tenants/{tenant_id}", response_model=TenantDetailResponse)
 async def get_tenant(
     tenant_id: UUID,
@@ -234,30 +260,6 @@ async def create_tenant(
                 admin_id=user_row[0],
                 admin_email=user_row[1]
             )
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/tenants/me", response_model=TenantResponse)
-async def get_current_tenant(current_user: TokenData = Depends(get_current_user)):
-    """Get the current user's tenant details (admin/super_admin only)"""
-    if current_user.role not in ("admin", "super_admin"):
-        raise HTTPException(
-            status_code=403,
-            detail="Only admin can access tenant settings"
-        )
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(
-                text("SELECT id, name, created_at FROM tenants WHERE id = :tenant_id"),
-                {"tenant_id": str(current_user.tenant_id)}
-            )
-            row = result.fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Tenant not found")
-            return TenantResponse(id=row[0], name=row[1], created_at=row[2])
     except HTTPException:
         raise
     except Exception as e:
