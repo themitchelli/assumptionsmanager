@@ -18,7 +18,9 @@
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { api } from '$lib/api';
-	import type { TableListResponse } from '$lib/api/types';
+	import { toasts } from '$lib/stores/toast';
+	import type { TableListResponse, TableResponse } from '$lib/api/types';
+	import CreateTableModal from '$lib/components/CreateTableModal.svelte';
 
 	// State
 	let tables: TableListResponse[] = [];
@@ -118,13 +120,28 @@
 		sortDirection = event.detail.sortDirection || 'none';
 	}
 
+	// Modal state
+	let createModalOpen = false;
+
+	// Existing table names for uniqueness validation
+	$: existingTableNames = tables.map((t) => t.name);
+
 	function handleRowClick(tableId: string) {
 		goto(`/tables/${tableId}`);
 	}
 
 	function handleCreateTable() {
-		// Will be implemented in US-002
-		goto('/tables/new');
+		createModalOpen = true;
+	}
+
+	function handleCreateModalClose() {
+		createModalOpen = false;
+	}
+
+	function handleTableCreated(event: CustomEvent<TableResponse>) {
+		createModalOpen = false;
+		toasts.success('Table created', `"${event.detail.name}" has been created successfully.`);
+		goto(`/tables/${event.detail.id}`);
 	}
 
 	async function fetchTables() {
@@ -241,6 +258,13 @@
 		</Column>
 	</Row>
 </Grid>
+
+<CreateTableModal
+	bind:open={createModalOpen}
+	{existingTableNames}
+	on:close={handleCreateModalClose}
+	on:created={handleTableCreated}
+/>
 
 <style>
 	.page-title {

@@ -128,6 +128,18 @@ export interface CreateTableRequest {
 	columns: ColumnDefinition[];
 }
 
+export interface TableResponse {
+	id: string;
+	tenant_id: string;
+	name: string;
+	description?: string;
+	effective_date?: string;
+	created_by: string;
+	created_at: string;
+	updated_at?: string;
+	columns: ColumnResponse[];
+}
+
 export interface UpdateTableRequest {
 	name?: string;
 	description?: string;
