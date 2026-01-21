@@ -15,7 +15,7 @@
 		ToastNotification,
 		Tooltip
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, Compare, Time, User } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, Compare, Time, User, ChevronRight } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -55,8 +55,28 @@
 		{ key: 'comment', value: 'Comment' },
 		{ key: 'created_by_name', value: 'Created By' },
 		{ key: 'created_at', value: 'Created At' },
-		{ key: 'approval_status', value: 'Status' }
+		{ key: 'approval_status', value: 'Status' },
+		{ key: 'actions', value: 'Actions', empty: true }
 	];
+
+	// Get previous version for comparison
+	function getPreviousVersion(currentVersion: VersionListResponse): VersionListResponse | null {
+		const sortedVersions = [...versions].sort((a, b) => b.version_number - a.version_number);
+		const currentIndex = sortedVersions.findIndex((v) => v.id === currentVersion.id);
+		if (currentIndex >= 0 && currentIndex < sortedVersions.length - 1) {
+			return sortedVersions[currentIndex + 1];
+		}
+		return null;
+	}
+
+	// Quick compare with previous version
+	function handleCompareWithPrevious(version: VersionListResponse) {
+		const previousVersion = getPreviousVersion(version);
+		if (!previousVersion) return;
+
+		// Order: older version as v1, newer as v2
+		goto(`/tables/${tableId}/versions/compare?v1=${previousVersion.id}&v2=${version.id}`);
+	}
 
 	// Format relative time
 	function formatRelativeTime(dateStr: string): string {
@@ -331,14 +351,32 @@
 										<span class="ready">Ready to compare</span>
 									{/if}
 								</div>
+								{#if canCompare}
 								<Button
 									kind="secondary"
 									icon={Compare}
-									disabled={!canCompare}
 									on:click={handleCompare}
 								>
 									Compare Selected
 								</Button>
+							{:else}
+								<div
+									class="compare-tooltip-wrapper"
+									title={selectedVersionIds.length === 0
+										? 'Select 2 versions to compare'
+										: selectedVersionIds.length === 1
+											? 'Select 1 more version'
+											: 'Select exactly 2 versions'}
+								>
+									<Button
+										kind="secondary"
+										icon={Compare}
+										disabled
+									>
+										Compare Selected
+									</Button>
+								</div>
+							{/if}
 								{#if canCreateVersion}
 									<Button kind="primary" icon={Add} on:click={handleCreateSnapshot}>
 										Create Snapshot
@@ -353,12 +391,14 @@
 							</ToolbarContent>
 						</Toolbar>
 
-						<svelte:fragment slot="cell" let:cell>
+						<svelte:fragment slot="cell" let:cell let:row>
 							{#if cell.key === 'version_number'}
 								<span class="version-number">v{cell.value}</span>
 							{:else if cell.key === 'comment'}
 								<span class="comment" title={cell.value}>
-									{cell.value.length > 60 ? cell.value.slice(0, 60) + '...' : cell.value}
+									{cell.value && cell.value.length > 60
+										? cell.value.slice(0, 60) + '...'
+										: cell.value || ''}
 								</span>
 							{:else if cell.key === 'created_by_name'}
 								<span class="created-by">
@@ -372,6 +412,25 @@
 							{:else if cell.key === 'approval_status'}
 								{@const tag = getStatusTag(cell.value)}
 								<Tag type={tag.type} size="sm">{tag.text}</Tag>
+							{:else if cell.key === 'actions'}
+								{@const version = versions.find((v) => v.id === row.id)}
+								{@const hasPrevious = version ? getPreviousVersion(version) !== null : false}
+								{#if hasPrevious}
+									<Button
+										kind="ghost"
+										size="small"
+										icon={ChevronRight}
+										iconDescription="Compare with previous version"
+										on:click={(e) => {
+											e.stopPropagation();
+											if (version) handleCompareWithPrevious(version);
+										}}
+									>
+										Compare with previous
+									</Button>
+								{:else}
+									<span class="no-previous">First version</span>
+								{/if}
 							{:else}
 								{cell.value}
 							{/if}
@@ -540,5 +599,15 @@
 		margin-top: 1rem;
 		background: var(--cds-layer-01, #f4f4f4);
 		border-radius: 4px;
+	}
+
+	.compare-tooltip-wrapper {
+		display: inline-block;
+	}
+
+	.no-previous {
+		color: var(--cds-text-secondary, #525252);
+		font-size: 0.875rem;
+		font-style: italic;
 	}
 </style>
