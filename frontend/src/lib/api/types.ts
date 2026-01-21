@@ -330,3 +330,22 @@ export interface ImportResponse {
 export interface AppendImportResponse {
 	rows_added: number;
 }
+
+// ============================================================
+// Pending Approvals Types
+// ============================================================
+
+export interface PendingApprovalItem {
+	version_id: string;
+	version_number: number;
+	table_id: string;
+	table_name: string;
+	submitted_by: string;
+	submitted_by_name: string;
+	submitted_at: string;
+}
+
+export interface PendingApprovalsResponse {
+	total_count: number;
+	items: PendingApprovalItem[];
+}

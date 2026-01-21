@@ -446,3 +446,25 @@ class ImportReplaceResultResponse(BaseModel):
 class ImportAppendResultResponse(BaseModel):
     """Result of a CSV import that appends data"""
     rows_added: int
+
+
+# Pending Approvals schemas (PRD-019 US-008)
+
+class PendingApprovalItem(BaseModel):
+    """A version pending approval"""
+    version_id: UUID
+    version_number: int
+    table_id: UUID
+    table_name: str
+    submitted_by: UUID
+    submitted_by_name: str
+    submitted_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PendingApprovalsResponse(BaseModel):
+    """Response containing pending approvals for admin dashboard"""
+    total_count: int
+    items: list[PendingApprovalItem]

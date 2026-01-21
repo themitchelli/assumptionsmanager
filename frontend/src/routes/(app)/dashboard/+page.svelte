@@ -2,9 +2,10 @@
 	import { Grid, Row, Column, Tile, ClickableTile } from 'carbon-components-svelte';
 	import TableSplit from 'carbon-icons-svelte/lib/TableSplit.svelte';
 	import Upload from 'carbon-icons-svelte/lib/Upload.svelte';
-	import { auth } from '$lib/stores/auth';
+	import { auth, isAdmin } from '$lib/stores/auth';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { onMount } from 'svelte';
+	import PendingApprovalsCard from '$lib/components/PendingApprovalsCard.svelte';
 
 	onMount(() => {
 		breadcrumbs.set([{ label: 'Dashboard' }]);
@@ -39,19 +40,27 @@
 		</Column>
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
-				<h3 class="stat-title">Pending Approvals</h3>
-				<p class="stat-value">--</p>
-				<p class="stat-description">Versions awaiting review</p>
-			</Tile>
-		</Column>
-		<Column sm={4} md={4} lg={4}>
-			<Tile class="stat-tile">
 				<h3 class="stat-title">Recent Activity</h3>
 				<p class="stat-value">--</p>
 				<p class="stat-description">Updates in the last 7 days</p>
 			</Tile>
 		</Column>
+		<Column sm={4} md={4} lg={4}>
+			<Tile class="stat-tile">
+				<h3 class="stat-title">Versions</h3>
+				<p class="stat-value">--</p>
+				<p class="stat-description">Total version snapshots</p>
+			</Tile>
+		</Column>
 	</Row>
+
+	{#if $isAdmin}
+		<Row>
+			<Column sm={4} md={8} lg={8}>
+				<PendingApprovalsCard />
+			</Column>
+		</Row>
+	{/if}
 
 	<Row>
 		<Column>

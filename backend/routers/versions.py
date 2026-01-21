@@ -14,14 +14,101 @@ from schemas import (
     ColumnResponse, RowResponse, VersionDiffResponse, ModifiedCellResponse,
     FormattedDiffResponse, VersionMetadata, DiffSummary, ColumnSummary,
     CellStatus, RowChange, SubmitApprovalRequest, ApproveRequest, RejectRequest,
-    ApprovalHistoryEntry
+    ApprovalHistoryEntry, PendingApprovalsResponse, PendingApprovalItem
 )
 from services.versioning import VersioningService
 from services.approvals.service import ApprovalService
 
 router = APIRouter(prefix="/tables", tags=["versions"])
 
+# Additional router for non-table-scoped version endpoints
+pending_router = APIRouter(prefix="/versions", tags=["versions"])
+
 WRITE_ROLES = {"analyst", "admin"}
+
+
+@pending_router.get("/pending", response_model=PendingApprovalsResponse)
+async def get_pending_approvals(
+    limit: int = Query(default=5, ge=1, le=50),
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Get versions pending approval for admin dashboard.
+
+    Returns submitted versions across all tables in the tenant.
+    Only admin and super_admin can access this endpoint.
+
+    Query parameters:
+    - limit: Maximum number of items to return (default 5, max 50)
+    """
+    if current_user.role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=403,
+            detail="Only admin can view pending approvals"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Get total count of pending approvals in tenant
+            count_result = db.execute(
+                text("""
+                    SELECT COUNT(*)
+                    FROM assumption_versions v
+                    JOIN assumption_tables t ON v.table_id = t.id
+                    JOIN version_approvals va ON va.version_id = v.id
+                    WHERE t.tenant_id = :tenant_id
+                    AND va.status = 'submitted'
+                """),
+                {"tenant_id": str(current_user.tenant_id)}
+            )
+            total_count = count_result.fetchone()[0]
+
+            # Get pending approval items with table and submitter info
+            result = db.execute(
+                text("""
+                    SELECT
+                        v.id as version_id,
+                        v.version_number,
+                        t.id as table_id,
+                        t.name as table_name,
+                        va.submitted_by,
+                        u.email as submitted_by_name,
+                        va.submitted_at
+                    FROM assumption_versions v
+                    JOIN assumption_tables t ON v.table_id = t.id
+                    JOIN version_approvals va ON va.version_id = v.id
+                    LEFT JOIN users u ON u.id = va.submitted_by
+                    WHERE t.tenant_id = :tenant_id
+                    AND va.status = 'submitted'
+                    ORDER BY va.submitted_at DESC
+                    LIMIT :limit
+                """),
+                {"tenant_id": str(current_user.tenant_id), "limit": limit}
+            )
+
+            items = [
+                PendingApprovalItem(
+                    version_id=row[0],
+                    version_number=row[1],
+                    table_id=row[2],
+                    table_name=row[3],
+                    submitted_by=row[4],
+                    submitted_by_name=row[5] or "Unknown",
+                    submitted_at=row[6]
+                )
+                for row in result
+            ]
+
+            return PendingApprovalsResponse(
+                total_count=total_count,
+                items=items
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{table_id}/versions", response_model=VersionResponse, status_code=201)
