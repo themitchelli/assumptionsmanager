@@ -11,7 +11,7 @@ A SaaS platform enabling actuaries to manage mortality, lapse, and expense table
 
 ## 🤖 Built 100% by AI Agents
 
-This entire product was developed as a **thought experiment in agentic software development** by [Steve Mitchell](https://www.linkedin.com/in/stevemitchelli/), Director of Product Engineering at Milliman.
+This entire product was developed as a **thought experiment in agentic software development** by [Steve Mitchell](https://www.linkedin.com/in/steve-mitchell-21941b4/). The approach and solution do not reflect his employer or their views in any way.
 
 Every line of code, database migration, Docker configuration, and CI/CD pipeline was written by Claude (Anthropic's AI) using the FADE (Framework for Agentic Development and Engineering) methodology. A human directed the work through PRDs and reviewed outputs, but never wrote code directly.
 
@@ -198,6 +198,6 @@ MIT License – see LICENSE file for details.
 
 ## Contact
 
-**Steve Mitchell** – [@stevemitchelli](https://twitter.com/stevemitchelli)
+**Steve Mitchell** – [@themitchelli](https://twitter.com/themitchelli)
 
 Questions about agentic development? Drop me a line. Always happy to chat about AI-assisted engineering.
