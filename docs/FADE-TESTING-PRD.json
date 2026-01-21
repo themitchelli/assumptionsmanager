@@ -1,0 +1,140 @@
+{
+  "id": "PRD-XXX",
+  "name": "Configurable Testing Infrastructure",
+  "type": "feature",
+  "priority": "high",
+  "description": "Add optional, configurable testing infrastructure to FADE that enables projects to implement regression testing derived from PRD acceptance criteria. Testing should be opt-in and configurable per project.",
+  "rationale": "FADE excels at implementing features via PRDs but lacks regression testing. When agents complete US-008, there's no automated verification that US-001 through US-007 still work. Projects need a way to build regression suites from completed ACs, run them pre-push, and optionally run safe subsets against production.",
+  "configuration": {
+    "location": "fade/config.json or FADE.md frontmatter",
+    "example": {
+      "testing": {
+        "enabled": true,
+        "framework": "shell",
+        "preCommitHook": true,
+        "testDir": "tests/regression",
+        "environments": {
+          "dev": { "baseUrl": "http://localhost:8000" },
+          "prod": { "baseUrl": "https://example.com", "readOnly": true }
+        }
+      }
+    }
+  },
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Configure testing in FADE project",
+      "description": "As a developer, I want to enable/disable testing features in my FADE project so that testing is opt-in and doesn't affect projects that don't need it.",
+      "acceptanceCriteria": [
+        "fade/config.json supports a 'testing' configuration block",
+        "Testing features are disabled by default",
+        "When disabled, no test-related files or hooks are created",
+        "Configuration is validated on fade init/run"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-002",
+      "title": "Enhanced AC schema for testability",
+      "description": "As a developer, I want acceptance criteria in PRDs to have optional testing metadata so that tests can be generated or written with clear contracts.",
+      "acceptanceCriteria": [
+        "AC items support optional 'testable' boolean (default true)",
+        "AC items support optional 'prodSafe' boolean (default false)",
+        "AC items support optional 'endpoint' string for API tests",
+        "AC items support optional 'method' string (GET/POST/etc)",
+        "Existing PRDs without these fields continue to work",
+        "Schema is documented in FADE docs"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-003",
+      "title": "Test file conventions and structure",
+      "description": "As a developer, I want FADE to define standard test file conventions so that test organization is consistent across projects.",
+      "acceptanceCriteria": [
+        "Convention defined: tests/{regression,smoke,e2e}/ directories",
+        "Convention defined: test files named {PRD-ID}-{slug}.test.{ext}",
+        "Convention defined: test functions/cases named after AC IDs",
+        "Conventions documented in FADE docs",
+        "fade init creates test directories when testing enabled"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-004",
+      "title": "Test runner command",
+      "description": "As a developer, I want a 'fade test' command that runs regression tests so that I can verify functionality before pushing.",
+      "acceptanceCriteria": [
+        "'fade test' runs all tests in configured testDir",
+        "'fade test --env=prod' runs only prodSafe tests against prod URL",
+        "'fade test --prd=PRD-007' runs tests for specific PRD only",
+        "Exit code 0 on success, non-zero on failure",
+        "Summary output shows pass/fail counts",
+        "Command skipped gracefully if testing not enabled"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-005",
+      "title": "Pre-push hook integration",
+      "description": "As a developer, I want FADE to optionally run regression tests before git push so that broken code doesn't reach the repository.",
+      "acceptanceCriteria": [
+        "Config option 'preCommitHook' enables git pre-push hook",
+        "Hook runs 'fade test' and blocks push on failure",
+        "Hook can be bypassed with --no-verify flag",
+        "Hook is installed/updated by fade init when enabled"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-006",
+      "title": "Test generation agent prompt",
+      "description": "As a developer, I want an agent prompt that generates test stubs from PRD acceptance criteria so that test creation is accelerated.",
+      "acceptanceCriteria": [
+        "Agent prompt template provided in fade/templates/",
+        "Prompt instructs agent to read completed PRDs from prd-archive",
+        "Prompt instructs agent to generate one test per AC",
+        "Prompt respects 'testable' flag on ACs",
+        "Generated tests follow FADE test conventions",
+        "Agent can be invoked via 'fade generate-tests' or manually"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-007",
+      "title": "Production test filter agent prompt",
+      "description": "As a developer, I want an agent that reviews tests and identifies which are safe to run against production so that I can build a prod smoke test suite.",
+      "acceptanceCriteria": [
+        "Agent prompt template provided in fade/templates/",
+        "Prompt instructs agent to analyze test files",
+        "Agent identifies read-only vs mutating tests",
+        "Agent suggests 'prodSafe' tagging for appropriate tests",
+        "Agent documents reasoning for each recommendation"
+      ],
+      "passes": false
+    },
+    {
+      "id": "US-008",
+      "title": "Test templates for common frameworks",
+      "description": "As a developer, I want test templates for common testing approaches so that I can quickly implement tests in my preferred style.",
+      "acceptanceCriteria": [
+        "Shell/curl template for API testing provided",
+        "Python/pytest template provided",
+        "JavaScript/Jest template provided (optional)",
+        "Templates demonstrate testing an AC with assertions",
+        "Templates show environment variable usage for URLs",
+        "Templates documented with usage instructions"
+      ],
+      "passes": false
+    }
+  ],
+  "outOfScope": [
+    "Specific test framework installations (projects choose their own)",
+    "CI/CD integration (projects configure their own pipelines)",
+    "Test coverage metrics",
+    "Visual regression testing",
+    "Load/performance testing"
+  ],
+  "dependencies": [],
+  "notes": "This PRD focuses on infrastructure and conventions. Actual test implementations are the responsibility of individual projects using FADE."
+}
