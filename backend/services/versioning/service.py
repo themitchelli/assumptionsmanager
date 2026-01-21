@@ -164,10 +164,16 @@ class VersioningService:
         query = """
             SELECT v.id, v.version_number, v.comment,
                    v.created_by, v.created_at, u.email as created_by_name,
-                   COALESCE(va.status, 'draft') as approval_status
+                   COALESCE(va.status, 'draft') as approval_status,
+                   va.submitted_by, va.submitted_at,
+                   va.reviewed_by, va.reviewed_at,
+                   su.email as submitted_by_name,
+                   ru.email as reviewed_by_name
             FROM assumption_versions v
             JOIN users u ON u.id = v.created_by
             LEFT JOIN version_approvals va ON va.version_id = v.id
+            LEFT JOIN users su ON su.id = va.submitted_by
+            LEFT JOIN users ru ON ru.id = va.reviewed_by
             WHERE v.table_id = :table_id
         """
         params: dict = {"table_id": str(table_id)}
@@ -191,7 +197,13 @@ class VersioningService:
                 "created_by": row[3],
                 "created_by_name": row[5],
                 "created_at": row[4],
-                "approval_status": row[6]
+                "approval_status": row[6],
+                "submitted_by": row[7],
+                "submitted_at": row[8],
+                "reviewed_by": row[9],
+                "reviewed_at": row[10],
+                "submitted_by_name": row[11],
+                "reviewed_by_name": row[12]
             }
             for row in result
         ]

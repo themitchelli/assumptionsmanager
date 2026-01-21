@@ -13,7 +13,8 @@
 		SkeletonText,
 		Tag,
 		ToastNotification,
-		Tooltip
+		Tooltip,
+		Dropdown
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
@@ -56,6 +57,16 @@
 	let showCreateModal = false;
 	let showRestoreModal = false;
 	let restoreVersion: VersionListResponse | null = null;
+
+	// Status filter state
+	let statusFilter: string = 'all';
+	const statusFilterItems = [
+		{ id: 'all', text: 'All' },
+		{ id: 'draft', text: 'Draft' },
+		{ id: 'submitted', text: 'Submitted' },
+		{ id: 'approved', text: 'Approved' },
+		{ id: 'rejected', text: 'Rejected' }
+	];
 
 	// DataTable headers
 	const headers = [
@@ -135,6 +146,29 @@
 		}
 	}
 
+	// Build status tooltip text
+	function getStatusTooltip(version: VersionListResponse): string | null {
+		const status = version.approval_status;
+		if (status === 'draft' || !status) {
+			return null; // No tooltip for draft
+		}
+
+		const parts: string[] = [];
+
+		if (status === 'submitted' && version.submitted_by_name && version.submitted_at) {
+			parts.push(`Submitted by ${version.submitted_by_name}`);
+			parts.push(formatAbsoluteTime(version.submitted_at));
+		} else if (status === 'approved' && version.reviewed_by_name && version.reviewed_at) {
+			parts.push(`Approved by ${version.reviewed_by_name}`);
+			parts.push(formatAbsoluteTime(version.reviewed_at));
+		} else if (status === 'rejected' && version.reviewed_by_name && version.reviewed_at) {
+			parts.push(`Rejected by ${version.reviewed_by_name}`);
+			parts.push(formatAbsoluteTime(version.reviewed_at));
+		}
+
+		return parts.length > 0 ? parts.join('\n') : null;
+	}
+
 	// Fetch versions
 	async function fetchVersions() {
 		loading = true;
@@ -149,8 +183,14 @@
 			}
 		}
 
+		// Build URL with status filter
+		let url = `/tables/${tableId}/versions`;
+		if (statusFilter && statusFilter !== 'all') {
+			url += `?status=${statusFilter}`;
+		}
+
 		// Fetch versions
-		const response = await api.get<VersionListResponse[]>(`/tables/${tableId}/versions`);
+		const response = await api.get<VersionListResponse[]>(url);
 		if (response.error) {
 			error = response.error.message;
 		} else if (response.data) {
@@ -165,6 +205,12 @@
 		]);
 
 		loading = false;
+	}
+
+	// Handle status filter change
+	function handleStatusFilterChange(event: CustomEvent<{ selectedId: string }>) {
+		statusFilter = event.detail.selectedId;
+		fetchVersions();
 	}
 
 	// Handle row expansion
@@ -371,6 +417,16 @@
 					>
 						<Toolbar>
 							<ToolbarContent>
+								<div class="toolbar-filter">
+									<Dropdown
+										titleText=""
+										hideLabel
+										size="sm"
+										selectedId={statusFilter}
+										items={statusFilterItems}
+										on:select={handleStatusFilterChange}
+									/>
+								</div>
 								<div class="toolbar-info">
 									{#if selectedVersionIds.length === 0}
 										<span class="hint">Select 2 versions to compare</span>
@@ -439,8 +495,23 @@
 									{formatAbsoluteTime(cell.value)}
 								</Tooltip>
 							{:else if cell.key === 'approval_status'}
+								{@const version = versions.find((v) => v.id === row.id)}
 								{@const tag = getStatusTag(cell.value)}
-								<Tag type={tag.type} size="sm">{tag.text}</Tag>
+								{@const tooltip = version ? getStatusTooltip(version) : null}
+								{#if tooltip}
+									<Tooltip direction="top">
+										<span slot="triggerText">
+											<Tag type={tag.type} size="sm">{tag.text}</Tag>
+										</span>
+										<div class="status-tooltip">
+											{#each tooltip.split('\n') as line}
+												<div>{line}</div>
+											{/each}
+										</div>
+									</Tooltip>
+								{:else}
+									<Tag type={tag.type} size="sm">{tag.text}</Tag>
+								{/if}
 							{:else if cell.key === 'actions'}
 								{@const version = versions.find((v) => v.id === row.id)}
 								{@const hasPrevious = version ? getPreviousVersion(version) !== null : false}
@@ -674,5 +745,21 @@
 		display: flex;
 		align-items: center;
 		gap: 0.25rem;
+	}
+
+	.toolbar-filter {
+		margin-right: 1rem;
+	}
+
+	.toolbar-filter :global(.bx--dropdown) {
+		min-width: 140px;
+	}
+
+	.status-tooltip {
+		text-align: left;
+	}
+
+	.status-tooltip div {
+		white-space: nowrap;
 	}
 </style>

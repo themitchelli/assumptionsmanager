@@ -203,6 +203,12 @@ export interface VersionListResponse {
 	created_by_name?: string;
 	created_at: string;
 	approval_status?: 'draft' | 'submitted' | 'approved' | 'rejected';
+	submitted_by?: string;
+	submitted_by_name?: string;
+	submitted_at?: string;
+	reviewed_by?: string;
+	reviewed_by_name?: string;
+	reviewed_at?: string;
 }
 
 export interface VersionDetailResponse extends VersionListResponse {

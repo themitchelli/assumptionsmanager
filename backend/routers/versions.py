@@ -430,7 +430,13 @@ async def list_versions(
                     created_by=v["created_by"],
                     created_by_name=v["created_by_name"],
                     created_at=v["created_at"],
-                    approval_status=v["approval_status"]
+                    approval_status=v["approval_status"],
+                    submitted_by=v["submitted_by"],
+                    submitted_by_name=v["submitted_by_name"],
+                    submitted_at=v["submitted_at"],
+                    reviewed_by=v["reviewed_by"],
+                    reviewed_by_name=v["reviewed_by_name"],
+                    reviewed_at=v["reviewed_at"]
                 )
                 for v in versions
             ]
