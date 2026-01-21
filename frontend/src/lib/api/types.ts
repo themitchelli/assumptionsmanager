@@ -141,6 +141,9 @@ export interface TableListResponse {
 	effective_date?: string;
 	created_by: string;
 	created_at: string;
+	updated_at?: string;
+	column_count: number;
+	row_count: number;
 }
 
 export interface CellData {

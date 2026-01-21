@@ -176,6 +176,9 @@ class TableListResponse(BaseModel):
     effective_date: str | None
     created_by: UUID | None
     created_at: datetime
+    updated_at: datetime | None = None
+    column_count: int = 0
+    row_count: int = 0
 
     class Config:
         from_attributes = True

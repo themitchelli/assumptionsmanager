@@ -19,16 +19,35 @@ WRITE_ROLES = {"analyst", "admin"}
 
 @router.get("", response_model=list[TableListResponse])
 async def list_tables(current_user: TokenData = Depends(get_current_user)):
-    """List all assumption tables in the current tenant"""
+    """List all assumption tables in the current tenant with column/row counts"""
     try:
         db = SessionLocal()
         try:
             result = db.execute(
                 text("""
-                    SELECT id, name, description, effective_date, created_by, created_at
-                    FROM assumption_tables
-                    WHERE tenant_id = :tenant_id
-                    ORDER BY created_at DESC
+                    SELECT
+                        t.id,
+                        t.name,
+                        t.description,
+                        t.effective_date,
+                        t.created_by,
+                        t.created_at,
+                        t.updated_at,
+                        COALESCE(col.column_count, 0) AS column_count,
+                        COALESCE(r.row_count, 0) AS row_count
+                    FROM assumption_tables t
+                    LEFT JOIN (
+                        SELECT table_id, COUNT(*) AS column_count
+                        FROM assumption_columns
+                        GROUP BY table_id
+                    ) col ON col.table_id = t.id
+                    LEFT JOIN (
+                        SELECT table_id, COUNT(*) AS row_count
+                        FROM assumption_rows
+                        GROUP BY table_id
+                    ) r ON r.table_id = t.id
+                    WHERE t.tenant_id = :tenant_id
+                    ORDER BY t.created_at DESC
                 """),
                 {"tenant_id": str(current_user.tenant_id)}
             )
@@ -39,7 +58,10 @@ async def list_tables(current_user: TokenData = Depends(get_current_user)):
                     description=row[2],
                     effective_date=str(row[3]) if row[3] else None,
                     created_by=row[4],
-                    created_at=row[5]
+                    created_at=row[5],
+                    updated_at=row[6],
+                    column_count=row[7],
+                    row_count=row[8]
                 )
                 for row in result
             ]
