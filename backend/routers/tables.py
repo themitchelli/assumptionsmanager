@@ -8,7 +8,7 @@ from database import SessionLocal
 from auth import get_current_user, TokenData
 from schemas import (
     TableCreate, TableUpdate, TableResponse, TableListResponse, TableDetailResponse,
-    ColumnResponse, RowResponse, RowsCreate, RowUpdate
+    ColumnCreate, ColumnResponse, RowResponse, RowsCreate, RowUpdate
 )
 
 router = APIRouter(prefix="/tables", tags=["tables"])
@@ -182,6 +182,117 @@ async def get_table(
                 updated_at=table_row[7],
                 columns=columns,
                 rows=rows
+            )
+        finally:
+            db.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{table_id}/columns", response_model=ColumnResponse, status_code=201)
+async def add_column(
+    table_id: UUID,
+    column: ColumnCreate,
+    current_user: TokenData = Depends(get_current_user)
+):
+    """Add a column to an existing assumption table"""
+    if current_user.role not in WRITE_ROLES:
+        raise HTTPException(
+            status_code=403,
+            detail="Only analyst or admin can add columns"
+        )
+
+    # Validate data type
+    if column.data_type not in VALID_DATA_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid data_type '{column.data_type}'. Must be one of: {', '.join(VALID_DATA_TYPES)}"
+        )
+
+    # Validate column name - no special characters, reasonable length
+    name = column.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Column name is required")
+    if len(name) > 100:
+        raise HTTPException(status_code=400, detail="Column name must be 100 characters or less")
+    # Allow alphanumeric, underscores, and spaces
+    import re
+    if not re.match(r'^[\w\s]+$', name):
+        raise HTTPException(
+            status_code=400,
+            detail="Column name can only contain letters, numbers, underscores, and spaces"
+        )
+
+    try:
+        db = SessionLocal()
+        try:
+            # Verify table exists and belongs to tenant
+            result = db.execute(
+                text("""
+                    SELECT id FROM assumption_tables
+                    WHERE id = :table_id AND tenant_id = :tenant_id
+                """),
+                {"table_id": str(table_id), "tenant_id": str(current_user.tenant_id)}
+            )
+            if not result.fetchone():
+                raise HTTPException(status_code=404, detail="Table not found")
+
+            # Check for duplicate column name
+            dup_result = db.execute(
+                text("""
+                    SELECT id FROM assumption_columns
+                    WHERE table_id = :table_id AND LOWER(name) = LOWER(:name)
+                """),
+                {"table_id": str(table_id), "name": name}
+            )
+            if dup_result.fetchone():
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"A column with name '{name}' already exists in this table"
+                )
+
+            # Get the next position (append to right side of grid)
+            max_result = db.execute(
+                text("""
+                    SELECT COALESCE(MAX(position), -1) FROM assumption_columns
+                    WHERE table_id = :table_id
+                """),
+                {"table_id": str(table_id)}
+            )
+            next_position = max_result.fetchone()[0] + 1
+
+            # Insert the column
+            col_result = db.execute(
+                text("""
+                    INSERT INTO assumption_columns (table_id, name, data_type, position)
+                    VALUES (:table_id, :name, :data_type, :position)
+                    RETURNING id, name, data_type, position, created_at
+                """),
+                {
+                    "table_id": str(table_id),
+                    "name": name,
+                    "data_type": column.data_type,
+                    "position": next_position
+                }
+            )
+            row = col_result.fetchone()
+
+            # Update table's updated_at timestamp
+            db.execute(
+                text("UPDATE assumption_tables SET updated_at = NOW() WHERE id = :table_id"),
+                {"table_id": str(table_id)}
+            )
+
+            db.commit()
+
+            return ColumnResponse(
+                id=row[0],
+                name=row[1],
+                data_type=row[2],
+                position=row[3],
+                created_at=row[4]
             )
         finally:
             db.close()

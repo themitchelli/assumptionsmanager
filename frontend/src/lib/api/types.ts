@@ -119,6 +119,12 @@ export interface ColumnDefinition {
 
 export interface ColumnResponse extends ColumnDefinition {
 	id: string;
+	created_at?: string;
+}
+
+export interface CreateColumnRequest {
+	name: string;
+	data_type: 'text' | 'integer' | 'decimal' | 'date' | 'boolean';
 }
 
 export interface CreateTableRequest {

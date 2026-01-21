@@ -130,6 +130,12 @@ class ColumnDefinition(BaseModel):
     position: int
 
 
+class ColumnCreate(BaseModel):
+    """Request body for adding a column to an existing table"""
+    name: str
+    data_type: str = "text"  # text, integer, decimal, date, boolean
+
+
 class ColumnResponse(BaseModel):
     id: UUID
     name: str

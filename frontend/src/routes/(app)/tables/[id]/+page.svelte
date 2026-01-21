@@ -13,10 +13,13 @@
 		SkeletonPlaceholder,
 		ToastNotification
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Calendar, Time } from 'carbon-icons-svelte';
+	import { ArrowLeft, Calendar, Time, Add } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
+	import { auth } from '$lib/stores/auth';
+	import { toasts } from '$lib/stores/toast';
 	import { api } from '$lib/api';
-	import type { TableDetailResponse } from '$lib/api/types';
+	import type { TableDetailResponse, ColumnResponse } from '$lib/api/types';
+	import AddColumnModal from '$lib/components/AddColumnModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -25,6 +28,15 @@
 	let table: TableDetailResponse | null = null;
 	let loading = true;
 	let error: string | null = null;
+
+	// Modal state
+	let showAddColumnModal = false;
+
+	// Role-based permissions
+	$: canEdit = $auth.user?.role === 'analyst' || $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
+
+	// Get existing column names for validation
+	$: existingColumnNames = table?.columns.map((c) => c.name) || [];
 
 	// Fetch table data
 	async function fetchTable() {
@@ -118,6 +130,20 @@
 		goto('/tables');
 	}
 
+	// Handle column created
+	function handleColumnCreated(event: CustomEvent<ColumnResponse>) {
+		const newColumn = event.detail;
+		if (table) {
+			// Add new column to table
+			table = {
+				...table,
+				columns: [...table.columns, newColumn]
+			};
+		}
+		showAddColumnModal = false;
+		toasts.success('Column added', `Column "${newColumn.name}" has been added to the table`);
+	}
+
 	onMount(() => {
 		// Set initial breadcrumbs (will update when data loads)
 		breadcrumbs.set([
@@ -194,7 +220,18 @@
 		<Row>
 			<Column>
 				<div class="table-header">
-					<h1 class="table-name">{table.name}</h1>
+					<div class="table-header-top">
+						<h1 class="table-name">{table.name}</h1>
+						{#if canEdit}
+							<Button
+								kind="primary"
+								icon={Add}
+								on:click={() => (showAddColumnModal = true)}
+							>
+								Add Column
+							</Button>
+						{/if}
+					</div>
 					{#if table.description}
 						<p class="table-description">{table.description}</p>
 					{/if}
@@ -244,6 +281,16 @@
 						<div class="empty-state">
 							<h3>No columns defined</h3>
 							<p>This table doesn't have any columns yet. Add columns to start entering data.</p>
+							{#if canEdit}
+								<Button
+									kind="primary"
+									icon={Add}
+									on:click={() => (showAddColumnModal = true)}
+									class="empty-state-button"
+								>
+									Add Column
+								</Button>
+							{/if}
 						</div>
 					{:else if table.rows.length === 0}
 						<!-- Columns but no rows -->
@@ -335,6 +382,15 @@
 	{/if}
 </Grid>
 
+<!-- Add Column Modal -->
+<AddColumnModal
+	bind:open={showAddColumnModal}
+	tableId={tableId}
+	existingColumnNames={existingColumnNames}
+	on:close={() => (showAddColumnModal = false)}
+	on:created={handleColumnCreated}
+/>
+
 <style>
 	:global(.back-button) {
 		margin-bottom: 1rem;
@@ -350,6 +406,13 @@
 
 	.table-header {
 		margin-bottom: 1.5rem;
+	}
+
+	.table-header-top {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		gap: 1rem;
 	}
 
 	.table-name {
@@ -507,6 +570,11 @@
 
 	.empty-state p {
 		color: var(--cds-text-secondary, #525252);
+		margin-bottom: 1rem;
+	}
+
+	:global(.empty-state-button) {
+		margin-top: 0.5rem;
 	}
 
 	.summary-info {
