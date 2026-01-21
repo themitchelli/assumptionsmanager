@@ -102,7 +102,7 @@ function createAuthStore() {
 							name: freshUser.name || freshUser.email.split('@')[0],
 							role: freshUser.role,
 							tenant_id: freshUser.tenant_id,
-							tenant_name: user.tenant_name
+							tenant_name: freshUser.tenant_name || user.tenant_name
 						},
 						token,
 						isAuthenticated: true,

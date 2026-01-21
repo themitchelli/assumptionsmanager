@@ -127,17 +127,28 @@ def get_me(
     db: Session = Depends(get_db),
 ):
     try:
-        user = db.execute(
-            select(User).where(User.id == current_user.user_id)
-        ).scalar_one_or_none()
+        # Join with Tenant to get tenant_name
+        result = db.execute(
+            select(User, Tenant.name.label("tenant_name"))
+            .join(Tenant, User.tenant_id == Tenant.id)
+            .where(User.id == current_user.user_id)
+        ).one_or_none()
 
-        if not user:
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found",
             )
 
-        return user
+        user, tenant_name = result
+        return UserResponse(
+            id=user.id,
+            tenant_id=user.tenant_id,
+            email=user.email,
+            role=user.role,
+            created_at=user.created_at,
+            tenant_name=tenant_name,
+        )
     except HTTPException:
         raise
     except Exception as e:

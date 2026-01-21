@@ -22,34 +22,34 @@
 			<h1 class="page-title">
 				Welcome{$auth.user?.name ? `, ${$auth.user.name}` : ''}
 			</h1>
-			{#if $auth.user?.tenant_name || $auth.user?.tenant_id}
+			{#if $auth.user}
 				<p class="tenant-context">
-					Tenant: {$auth.user.tenant_name || $auth.user.tenant_id}
+					Tenant: {$auth.user.tenant_name || 'Unnamed Tenant'}
 				</p>
 			{/if}
 		</Column>
 	</Row>
 
-	<Row>
+	<Row class="stats-row">
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
-				<h3 class="stat-title">Tables</h3>
-				<p class="stat-value">--</p>
-				<p class="stat-description">Assumption tables in your tenant</p>
+				<span class="stat-title">Tables</span>
+				<span class="stat-value">--</span>
+				<span class="stat-description">Assumption tables in your tenant</span>
 			</Tile>
 		</Column>
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
-				<h3 class="stat-title">Recent Activity</h3>
-				<p class="stat-value">--</p>
-				<p class="stat-description">Updates in the last 7 days</p>
+				<span class="stat-title">Recent Activity</span>
+				<span class="stat-value">--</span>
+				<span class="stat-description">Updates in the last 7 days</span>
 			</Tile>
 		</Column>
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
-				<h3 class="stat-title">Versions</h3>
-				<p class="stat-value">--</p>
-				<p class="stat-description">Total version snapshots</p>
+				<span class="stat-title">Versions</span>
+				<span class="stat-value">--</span>
+				<span class="stat-description">Total version snapshots</span>
 			</Tile>
 		</Column>
 	</Row>
@@ -77,7 +77,7 @@
 			</ClickableTile>
 		</Column>
 		<Column sm={4} md={4} lg={4}>
-			<ClickableTile href="/tables?import=true" class="action-tile">
+			<ClickableTile href="/tables/import" class="action-tile">
 				<Upload size={32} />
 				<h3>Import CSV</h3>
 				<p>Upload a CSV file to create or update tables</p>
@@ -105,23 +105,29 @@
 		font-weight: 600;
 	}
 
-	:global(.stat-tile) {
-		min-height: 150px;
+	:global(.stats-row) {
+		margin-bottom: 1rem;
 	}
 
-	:global(.stat-title) {
+	:global(.stat-tile) {
+		min-height: 150px;
+		display: flex;
+		flex-direction: column;
+	}
+
+	:global(.stat-tile .stat-title) {
 		font-size: 0.875rem;
 		color: var(--cds-text-secondary);
 		margin-bottom: 0.5rem;
 	}
 
-	:global(.stat-value) {
+	:global(.stat-tile .stat-value) {
 		font-size: 2.5rem;
 		font-weight: 300;
 		margin-bottom: 0.5rem;
 	}
 
-	:global(.stat-description) {
+	:global(.stat-tile .stat-description) {
 		font-size: 0.875rem;
 		color: var(--cds-text-helper);
 	}

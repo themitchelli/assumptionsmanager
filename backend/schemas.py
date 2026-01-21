@@ -15,6 +15,7 @@ class UserResponse(BaseModel):
     email: str
     role: str
     created_at: datetime
+    tenant_name: str | None = None
 
     class Config:
         from_attributes = True
