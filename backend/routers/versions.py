@@ -923,6 +923,20 @@ async def restore_version(
 
             # Restore the version data
             service.restore_version(table_id, version_id)
+
+            # Create a new version snapshot for audit trail
+            # This documents the restore action in the version history
+            restore_comment = f"Restored from v{version['version_number']}: {version.get('comment', '')[:100]}"
+            new_version = service.create_version(
+                table_id=table_id,
+                comment=restore_comment,
+                created_by=current_user.user_id
+            )
+
+            # Create draft approval entry for the new version
+            approval_service = ApprovalService(db)
+            approval_service.ensure_approval_entry(new_version["id"])
+
             db.commit()
 
             # Fetch the restored table data to return

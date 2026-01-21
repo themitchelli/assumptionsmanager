@@ -15,13 +15,14 @@
 		ToastNotification,
 		Tooltip
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, Compare, Time, User, ChevronRight } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
 	import { api } from '$lib/api';
-	import type { VersionListResponse, TableListResponse } from '$lib/api/types';
+	import type { VersionListResponse, TableListResponse, TableDetailResponse } from '$lib/api/types';
 	import CreateSnapshotModal from '$lib/components/CreateSnapshotModal.svelte';
+	import RestoreVersionModal from '$lib/components/RestoreVersionModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -42,12 +43,19 @@
 		$auth.user?.role === 'admin' ||
 		$auth.user?.role === 'super_admin';
 
+	// Restore is admin-only per acceptance criteria
+	$: canRestore =
+		$auth.user?.role === 'admin' ||
+		$auth.user?.role === 'super_admin';
+
 	// Selection state for comparison
 	let selectedVersionIds: string[] = [];
 	$: canCompare = selectedVersionIds.length === 2;
 
 	// Modal state
 	let showCreateModal = false;
+	let showRestoreModal = false;
+	let restoreVersion: VersionListResponse | null = null;
 
 	// DataTable headers
 	const headers = [
@@ -237,6 +245,27 @@
 		showCreateModal = false;
 	}
 
+	// Open restore modal
+	function handleRestore(version: VersionListResponse) {
+		restoreVersion = version;
+		showRestoreModal = true;
+	}
+
+	// Handle version restored
+	function handleVersionRestored(_event: CustomEvent<TableDetailResponse>) {
+		toasts.success('Version restored', `Table has been restored to v${restoreVersion?.version_number}. A new snapshot has been created for audit trail.`);
+		showRestoreModal = false;
+		restoreVersion = null;
+		// Navigate to table detail to see the restored data
+		goto(`/tables/${tableId}`);
+	}
+
+	// Handle restore modal close
+	function handleRestoreModalClose() {
+		showRestoreModal = false;
+		restoreVersion = null;
+	}
+
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
@@ -415,22 +444,38 @@
 							{:else if cell.key === 'actions'}
 								{@const version = versions.find((v) => v.id === row.id)}
 								{@const hasPrevious = version ? getPreviousVersion(version) !== null : false}
-								{#if hasPrevious}
-									<Button
-										kind="ghost"
-										size="small"
-										icon={ChevronRight}
-										iconDescription="Compare with previous version"
-										on:click={(e) => {
-											e.stopPropagation();
-											if (version) handleCompareWithPrevious(version);
-										}}
-									>
-										Compare with previous
-									</Button>
-								{:else}
-									<span class="no-previous">First version</span>
-								{/if}
+								<div class="actions-cell">
+									{#if hasPrevious}
+										<Button
+											kind="ghost"
+											size="small"
+											icon={ChevronRight}
+											iconDescription="Compare with previous version"
+											on:click={(e) => {
+												e.stopPropagation();
+												if (version) handleCompareWithPrevious(version);
+											}}
+										>
+											Compare with previous
+										</Button>
+									{:else}
+										<span class="no-previous">First version</span>
+									{/if}
+									{#if canRestore && version}
+										<Button
+											kind="ghost"
+											size="small"
+											icon={Restart}
+											iconDescription="Restore this version"
+											on:click={(e) => {
+												e.stopPropagation();
+												handleRestore(version);
+											}}
+										>
+											Restore
+										</Button>
+									{/if}
+								</div>
 							{:else}
 								{cell.value}
 							{/if}
@@ -487,6 +532,20 @@
 	on:created={handleSnapshotCreated}
 	on:close={handleModalClose}
 />
+
+<!-- Restore Version Modal -->
+{#if restoreVersion}
+	<RestoreVersionModal
+		bind:open={showRestoreModal}
+		{tableId}
+		{tableName}
+		versionId={restoreVersion.id}
+		versionNumber={restoreVersion.version_number}
+		approvalStatus={restoreVersion.approval_status}
+		on:restored={handleVersionRestored}
+		on:close={handleRestoreModalClose}
+	/>
+{/if}
 
 <style>
 	:global(.back-button) {
@@ -609,5 +668,11 @@
 		color: var(--cds-text-secondary, #525252);
 		font-size: 0.875rem;
 		font-style: italic;
+	}
+
+	.actions-cell {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
 	}
 </style>
