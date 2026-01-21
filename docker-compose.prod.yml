@@ -3,6 +3,13 @@
 # Connects to external 'web' network for Caddy reverse proxy
 
 services:
+  frontend:
+    build: ./frontend
+    container_name: assumptions-frontend
+    restart: unless-stopped
+    networks:
+      - web
+
   backend:
     build: ./backend
     container_name: assumptions-backend
