@@ -1,8 +1,9 @@
-"""CSV Import Service for assumption tables.
+"""CSV/XLSX Import Service for assumption tables.
 
-Provides CSV import functionality with:
+Provides import functionality with:
+- CSV and XLSX file support
 - Type inference (integer, decimal, date, boolean, text)
-- RFC 4180 compliant parsing
+- RFC 4180 compliant CSV parsing
 - UTF-8 encoding with BOM detection
 - Streaming parser for memory efficiency
 - Atomic transactions (all-or-nothing)
@@ -12,12 +13,18 @@ import csv
 import io
 import re
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from typing import BinaryIO, Iterator
 from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+try:
+    from openpyxl import load_workbook
+    XLSX_SUPPORTED = True
+except ImportError:
+    XLSX_SUPPORTED = False
 
 
 # Max errors to return (don't overwhelm with thousands)
@@ -91,9 +98,12 @@ class CSVImportService:
         Raises:
             ValueError: If CSV is malformed or validation fails
         """
-        # Parse CSV content
-        content = self._read_file_content(file)
-        rows = list(self._parse_csv(content))
+        # Parse file content (CSV or XLSX)
+        content, file_type = self._read_file_content(file)
+        if file_type == 'xlsx':
+            rows = list(self._parse_xlsx(content))
+        else:
+            rows = list(self._parse_csv(content))
 
         if not rows:
             raise ValueError("CSV file is empty or has no data rows")
@@ -224,17 +234,20 @@ class CSVImportService:
         Returns:
             ImportPreview with inferred columns, row count, and sample data
         """
-        content = self._read_file_content(file)
-        rows = list(self._parse_csv(content))
+        content, file_type = self._read_file_content(file)
+        if file_type == 'xlsx':
+            rows = list(self._parse_xlsx(content))
+        else:
+            rows = list(self._parse_csv(content))
 
         if not rows:
-            raise ValueError("CSV file is empty")
+            raise ValueError("File is empty")
 
         headers = rows[0]
         data_rows = rows[1:]
 
         if not headers:
-            raise ValueError("CSV file has no column headers")
+            raise ValueError("File has no column headers")
 
         # Check for duplicates
         seen = set()
@@ -310,23 +323,26 @@ class CSVImportService:
         if not existing_columns:
             raise ValueError("Table has no columns defined")
 
-        # Parse CSV
-        content = self._read_file_content(file)
-        rows = list(self._parse_csv(content))
+        # Parse file (CSV or XLSX)
+        content, file_type = self._read_file_content(file)
+        if file_type == 'xlsx':
+            rows = list(self._parse_xlsx(content))
+        else:
+            rows = list(self._parse_csv(content))
 
         if not rows:
-            raise ValueError("CSV file is empty")
+            raise ValueError("File is empty")
 
         headers = rows[0]
         data_rows = rows[1:]
 
         # Verify columns match (order independent)
-        csv_columns = set(h.strip() for h in headers if h.strip())
+        file_columns = set(h.strip() for h in headers if h.strip())
         table_columns = set(existing_columns.keys())
 
-        if csv_columns != table_columns:
-            missing = table_columns - csv_columns
-            extra = csv_columns - table_columns
+        if file_columns != table_columns:
+            missing = table_columns - file_columns
+            extra = file_columns - table_columns
             msg_parts = []
             if missing:
                 msg_parts.append(f"Missing columns: {', '.join(sorted(missing))}")
@@ -431,23 +447,26 @@ class CSVImportService:
         if not existing_columns:
             raise ValueError("Table has no columns defined")
 
-        # Parse CSV
-        content = self._read_file_content(file)
-        rows = list(self._parse_csv(content))
+        # Parse file (CSV or XLSX)
+        content, file_type = self._read_file_content(file)
+        if file_type == 'xlsx':
+            rows = list(self._parse_xlsx(content))
+        else:
+            rows = list(self._parse_csv(content))
 
         if not rows:
-            raise ValueError("CSV file is empty")
+            raise ValueError("File is empty")
 
         headers = rows[0]
         data_rows = rows[1:]
 
         # Verify columns match
-        csv_columns = set(h.strip() for h in headers if h.strip())
+        file_columns = set(h.strip() for h in headers if h.strip())
         table_columns = set(existing_columns.keys())
 
-        if csv_columns != table_columns:
-            missing = table_columns - csv_columns
-            extra = csv_columns - table_columns
+        if file_columns != table_columns:
+            missing = table_columns - file_columns
+            extra = file_columns - table_columns
             msg_parts = []
             if missing:
                 msg_parts.append(f"Missing columns: {', '.join(sorted(missing))}")
@@ -529,8 +548,12 @@ class CSVImportService:
         )
         return result.fetchone()[0]
 
-    def _read_file_content(self, file: BinaryIO) -> str:
-        """Read file content and decode to string."""
+    def _read_file_content(self, file: BinaryIO) -> tuple[str | bytes, str]:
+        """Read file content and detect file type.
+
+        Returns:
+            Tuple of (content, file_type) where file_type is 'csv' or 'xlsx'
+        """
         # Read raw bytes
         raw_content = file.read()
 
@@ -538,26 +561,69 @@ class CSVImportService:
         if len(raw_content) > MAX_FILE_SIZE:
             raise ValueError(f"File size exceeds maximum of {MAX_FILE_SIZE // (1024*1024)}MB")
 
+        # Check if it's an XLSX file (ZIP format starts with PK)
+        if raw_content.startswith(b'PK'):
+            if not XLSX_SUPPORTED:
+                raise ValueError("XLSX support not available. Please install openpyxl.")
+            return raw_content, 'xlsx'
+
+        # It's a CSV file - decode to string
         # Try UTF-8 with BOM first
         if raw_content.startswith(b'\xef\xbb\xbf'):
-            return raw_content[3:].decode('utf-8')
+            return raw_content[3:].decode('utf-8'), 'csv'
 
         # Try UTF-8
         try:
-            return raw_content.decode('utf-8')
+            return raw_content.decode('utf-8'), 'csv'
         except UnicodeDecodeError:
             pass
 
         # Try Latin-1 (Windows-1252 compatible)
         try:
-            return raw_content.decode('latin-1')
+            return raw_content.decode('latin-1'), 'csv'
         except UnicodeDecodeError:
             pass
 
         raise ValueError("Unable to decode file. Ensure it is UTF-8 or Latin-1 encoded")
 
+    def _parse_xlsx(self, content: bytes) -> Iterator[list[str]]:
+        """Parse XLSX content from bytes."""
+        wb = load_workbook(filename=io.BytesIO(content), read_only=True, data_only=True)
+        ws = wb.active
+
+        for row in ws.iter_rows():
+            row_values = []
+            for cell in row:
+                value = cell.value
+                if value is None:
+                    row_values.append('')
+                elif isinstance(value, datetime):
+                    # Format datetime as date string
+                    row_values.append(value.strftime('%Y-%m-%d'))
+                elif isinstance(value, date):
+                    row_values.append(value.strftime('%Y-%m-%d'))
+                elif isinstance(value, bool):
+                    row_values.append('true' if value else 'false')
+                elif isinstance(value, (int, float)):
+                    # Check if it's effectively an integer
+                    if isinstance(value, float) and value.is_integer():
+                        row_values.append(str(int(value)))
+                    else:
+                        row_values.append(str(value))
+                else:
+                    row_values.append(str(value).strip())
+
+            # Skip completely empty rows
+            if any(cell.strip() for cell in row_values):
+                yield row_values
+
+        wb.close()
+
     def _parse_csv(self, content: str) -> Iterator[list[str]]:
         """Parse CSV content, auto-detecting delimiter."""
+        # Normalize line endings to Unix style
+        content = content.replace('\r\n', '\n').replace('\r', '\n')
+
         # Detect delimiter from first line
         first_line = content.split('\n', 1)[0] if content else ''
 
@@ -573,8 +639,9 @@ class CSVImportService:
         else:
             delimiter = ','
 
-        # Parse with detected delimiter
-        reader = csv.reader(io.StringIO(content), delimiter=delimiter)
+        # Parse with detected delimiter - use newline='' for proper handling
+        # of embedded newlines in quoted fields
+        reader = csv.reader(io.StringIO(content, newline=''), delimiter=delimiter)
         for row in reader:
             # Skip completely empty rows
             if row and any(cell.strip() for cell in row):

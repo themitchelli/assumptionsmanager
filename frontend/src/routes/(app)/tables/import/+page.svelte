@@ -153,13 +153,13 @@
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
-			{ label: 'Import CSV' }
+			{ label: 'Import' }
 		]);
 	});
 </script>
 
 <svelte:head>
-	<title>Import CSV - Assumptions Manager</title>
+	<title>Import - Assumptions Manager</title>
 </svelte:head>
 
 <Grid>
@@ -178,8 +178,8 @@
 
 	<Row>
 		<Column>
-			<h1 class="page-title">Import CSV</h1>
-			<p class="page-description">Upload a CSV file to create a new assumption table</p>
+			<h1 class="page-title">Import Data</h1>
+			<p class="page-description">Upload a CSV or Excel file to create a new assumption table</p>
 		</Column>
 	</Row>
 
@@ -198,13 +198,13 @@
 		<Row>
 			<Column lg={8} md={6} sm={4}>
 				<Tile class="upload-section">
-					<h3 class="section-title">1. Upload CSV File</h3>
+					<h3 class="section-title">1. Upload File</h3>
 
 					<FileUploader
 						labelTitle="Select file"
-						labelDescription="Max file size is 10MB. Supported formats: .csv"
+						labelDescription="Max file size is 10MB. Supported formats: .csv, .xlsx"
 						buttonLabel="Add file"
-						accept={['.csv']}
+						accept={['.csv', '.xlsx']}
 						status={loadingPreview ? 'uploading' : 'complete'}
 						on:change={handleFileChange}
 						on:remove={handleClearFile}
@@ -234,7 +234,7 @@
 							<InlineNotification
 								kind="error"
 								title="Validation errors"
-								subtitle="{preview.errors.length} error(s) found in the CSV file"
+								subtitle="{preview.errors.length} error(s) found in the file"
 								lowContrast
 								hideCloseButton
 							/>
@@ -324,12 +324,17 @@
 
 			<Column lg={4} md={2} sm={4}>
 				<Tile class="help-section">
-					<h4>CSV Format Requirements</h4>
+					<h4>Supported File Formats</h4>
+					<ul class="help-list">
+						<li><strong>.xlsx</strong> - Excel spreadsheets (recommended)</li>
+						<li><strong>.csv</strong> - Comma-separated values</li>
+					</ul>
+
+					<h4>File Requirements</h4>
 					<ul class="help-list">
 						<li>First row must contain column headers</li>
-						<li>Columns are comma-separated</li>
-						<li>Use UTF-8 encoding</li>
 						<li>Maximum file size: 10MB</li>
+						<li>For CSV: UTF-8 encoding recommended</li>
 					</ul>
 
 					<h4>Supported Data Types</h4>
