@@ -146,18 +146,24 @@
 	}
 
 	:global(.user-name) {
+		display: block;
 		font-weight: 600;
 		font-size: 0.875rem;
+		line-height: 1.4;
 	}
 
 	:global(.user-role) {
+		display: block;
 		font-size: 0.75rem;
 		color: var(--cds-text-secondary);
 		text-transform: capitalize;
+		line-height: 1.4;
 	}
 
 	:global(.user-tenant) {
+		display: block;
 		font-size: 0.75rem;
 		color: var(--cds-text-helper);
+		line-height: 1.4;
 	}
 </style>
