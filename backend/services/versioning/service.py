@@ -19,6 +19,7 @@ class VersioningService:
         entity_type: str,
         entity_id: UUID,
         user_id: UUID,
+        tenant_id: UUID,
         comment: str,
         context: dict | None = None
     ) -> dict:
@@ -28,6 +29,7 @@ class VersioningService:
             entity_type: Type of entity (currently only 'assumption_table')
             entity_id: UUID of the entity to snapshot
             user_id: UUID of user creating the snapshot
+            tenant_id: UUID of the tenant
             comment: Description of this version
             context: Optional JSON context data for future extensibility
 
@@ -40,12 +42,13 @@ class VersioningService:
         if entity_type != "assumption_table":
             raise ValueError(f"Unsupported entity_type: {entity_type}")
 
-        return self._create_table_snapshot(entity_id, user_id, comment, context or {})
+        return self._create_table_snapshot(entity_id, user_id, tenant_id, comment, context or {})
 
     def _create_table_snapshot(
         self,
         table_id: UUID,
         user_id: UUID,
+        tenant_id: UUID,
         comment: str,
         context: dict
     ) -> dict:
@@ -68,12 +71,13 @@ class VersioningService:
         # Create version record
         version_result = self.db.execute(
             text("""
-                INSERT INTO assumption_versions (table_id, version_number, comment, created_by, context)
-                VALUES (:table_id, :version_number, :comment, :created_by, :context)
+                INSERT INTO assumption_versions (table_id, tenant_id, version_number, comment, created_by, context)
+                VALUES (:table_id, :tenant_id, :version_number, :comment, :created_by, :context)
                 RETURNING id, version_number, comment, created_by, created_at
             """),
             {
                 "table_id": str(table_id),
+                "tenant_id": str(tenant_id),
                 "version_number": version_number,
                 "comment": comment,
                 "created_by": str(user_id),

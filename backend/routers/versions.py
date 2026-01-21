@@ -151,6 +151,7 @@ async def create_version(
                 entity_type="assumption_table",
                 entity_id=table_id,
                 user_id=current_user.user_id,
+                tenant_id=current_user.tenant_id,
                 comment=data.comment
             )
 
