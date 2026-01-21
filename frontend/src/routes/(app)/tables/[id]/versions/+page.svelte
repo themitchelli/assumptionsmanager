@@ -27,6 +27,7 @@
 	import SubmitForApprovalModal from '$lib/components/SubmitForApprovalModal.svelte';
 	import ApproveVersionModal from '$lib/components/ApproveVersionModal.svelte';
 	import RejectVersionModal from '$lib/components/RejectVersionModal.svelte';
+	import ResubmitVersionModal from '$lib/components/ResubmitVersionModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -77,6 +78,8 @@
 	let approveVersion: VersionListResponse | null = null;
 	let showRejectModal = false;
 	let rejectVersion: VersionListResponse | null = null;
+	let showResubmitModal = false;
+	let resubmitVersion: VersionListResponse | null = null;
 
 	// Status filter state
 	let statusFilter: string = 'all';
@@ -395,6 +398,27 @@
 		rejectVersion = null;
 	}
 
+	// Open resubmit modal
+	function handleResubmit(version: VersionListResponse) {
+		resubmitVersion = version;
+		showResubmitModal = true;
+	}
+
+	// Handle version resubmitted
+	function handleVersionResubmitted(_event: CustomEvent<VersionListResponse>) {
+		toasts.success('Resubmitted for approval', `Version ${resubmitVersion?.version_number} has been resubmitted for review`);
+		showResubmitModal = false;
+		resubmitVersion = null;
+		// Refresh the version list to show updated status
+		fetchVersions();
+	}
+
+	// Handle resubmit modal close
+	function handleResubmitModalClose() {
+		showResubmitModal = false;
+		resubmitVersion = null;
+	}
+
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
@@ -669,6 +693,20 @@
 											Reject
 										</Button>
 									{/if}
+									{#if canSubmit && version && version.approval_status === 'rejected'}
+										<Button
+											kind="ghost"
+											size="small"
+											icon={SendAlt}
+											iconDescription="Resubmit for approval"
+											on:click={(e) => {
+												e.stopPropagation();
+												handleResubmit(version);
+											}}
+										>
+											Resubmit
+										</Button>
+									{/if}
 								</div>
 							{:else}
 								{cell.value}
@@ -781,6 +819,19 @@
 		submittedAt={rejectVersion.submitted_at}
 		on:rejected={handleVersionRejected}
 		on:close={handleRejectModalClose}
+	/>
+{/if}
+
+<!-- Resubmit Version Modal -->
+{#if resubmitVersion}
+	<ResubmitVersionModal
+		bind:open={showResubmitModal}
+		{tableId}
+		{tableName}
+		versionId={resubmitVersion.id}
+		versionNumber={resubmitVersion.version_number}
+		on:submitted={handleVersionResubmitted}
+		on:close={handleResubmitModalClose}
 	/>
 {/if}
 
