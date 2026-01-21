@@ -28,6 +28,7 @@
 	import ApproveVersionModal from '$lib/components/ApproveVersionModal.svelte';
 	import RejectVersionModal from '$lib/components/RejectVersionModal.svelte';
 	import ResubmitVersionModal from '$lib/components/ResubmitVersionModal.svelte';
+	import ApprovalHistoryPanel from '$lib/components/ApprovalHistoryPanel.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -715,26 +716,34 @@
 
 						<svelte:fragment slot="expanded-row" let:row>
 							<div class="expanded-content">
-								{#if versionDetails.get(row.id)?.loading}
-									<SkeletonText width="200px" />
-								{:else}
-									<div class="detail-row">
-										<strong>Full comment:</strong>
-										<span>{versions.find((v) => v.id === row.id)?.comment || ''}</span>
-									</div>
-									<div class="detail-row">
-										<strong>Cell count:</strong>
-										<span>{versionDetails.get(row.id)?.cell_count || 0} cells</span>
-									</div>
-									<div class="detail-row">
-										<strong>Created:</strong>
-										<span
-											>{formatAbsoluteTime(
-												versions.find((v) => v.id === row.id)?.created_at || ''
-											)}</span
-										>
-									</div>
-								{/if}
+								<div class="expanded-details">
+									{#if versionDetails.get(row.id)?.loading}
+										<SkeletonText width="200px" />
+									{:else}
+										<div class="detail-row">
+											<strong>Full comment:</strong>
+											<span>{versions.find((v) => v.id === row.id)?.comment || ''}</span>
+										</div>
+										<div class="detail-row">
+											<strong>Cell count:</strong>
+											<span>{versionDetails.get(row.id)?.cell_count || 0} cells</span>
+										</div>
+										<div class="detail-row">
+											<strong>Created:</strong>
+											<span
+												>{formatAbsoluteTime(
+													versions.find((v) => v.id === row.id)?.created_at || ''
+												)}</span
+											>
+										</div>
+									{/if}
+								</div>
+								<div class="expanded-history">
+									<ApprovalHistoryPanel
+										{tableId}
+										versionId={row.id}
+									/>
+								</div>
 							</div>
 						</svelte:fragment>
 					</DataTable>
@@ -927,8 +936,21 @@
 	}
 
 	.expanded-content {
+		display: flex;
+		gap: 2rem;
 		padding: 1rem 2rem;
 		background: var(--cds-layer-01, #f4f4f4);
+	}
+
+	.expanded-details {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.expanded-history {
+		flex: 1;
+		min-width: 300px;
+		max-width: 400px;
 	}
 
 	.detail-row {
@@ -937,6 +959,16 @@
 
 	.detail-row strong {
 		margin-right: 0.5rem;
+	}
+
+	@media (max-width: 768px) {
+		.expanded-content {
+			flex-direction: column;
+		}
+
+		.expanded-history {
+			max-width: none;
+		}
 	}
 
 	.compare-footer {
