@@ -23,4 +23,4 @@ jobs:
       - name: Health check
         run: |
           sleep 10
-          curl -f https://assumptionsmanager.ddns.net/health || exit 1
+          curl -f https://assumptionsmanager.ddns.net/api/health || exit 1
