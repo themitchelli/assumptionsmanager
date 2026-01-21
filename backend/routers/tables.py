@@ -14,7 +14,7 @@ from schemas import (
 router = APIRouter(prefix="/tables", tags=["tables"])
 
 VALID_DATA_TYPES = {"text", "integer", "decimal", "date", "boolean"}
-WRITE_ROLES = {"analyst", "admin"}
+WRITE_ROLES = {"analyst", "admin", "super_admin"}
 
 
 @router.get("", response_model=list[TableListResponse])

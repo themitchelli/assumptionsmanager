@@ -25,7 +25,7 @@ from services.csv_import import CSVImportService
 
 router = APIRouter(prefix="/tables", tags=["import"])
 
-WRITE_ROLES = {"analyst", "admin"}
+WRITE_ROLES = {"analyst", "admin", "super_admin"}
 
 # 5 minute timeout for large imports
 IMPORT_TIMEOUT = 300

@@ -24,7 +24,7 @@ router = APIRouter(prefix="/tables", tags=["versions"])
 # Additional router for non-table-scoped version endpoints
 pending_router = APIRouter(prefix="/versions", tags=["versions"])
 
-WRITE_ROLES = {"analyst", "admin"}
+WRITE_ROLES = {"analyst", "admin", "super_admin"}
 
 
 @pending_router.get("/pending", response_model=PendingApprovalsResponse)
