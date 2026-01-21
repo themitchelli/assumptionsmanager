@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
 	import { goto } from '$app/navigation';
 	import {
 		Grid,
@@ -11,7 +11,8 @@
 		Button,
 		SkeletonText,
 		SkeletonPlaceholder,
-		ToastNotification
+		ToastNotification,
+		Checkbox
 	} from 'carbon-components-svelte';
 	import { ArrowLeft, Calendar, Time, Add, RowInsert } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
@@ -36,6 +37,14 @@
 
 	// Row creation state
 	let addingRow = false;
+
+	// Inline editing state
+	let editingCell: { rowId: string; columnName: string } | null = null;
+	let editValue: string | number | boolean | null = null;
+	let editBoolValue = false; // Separate boolean for Checkbox binding
+	let originalValue: string | number | boolean | null = null;
+	let savingCell = false;
+	let cellInputRef: HTMLInputElement | null = null;
 
 	// Role-based permissions
 	$: canEdit = $auth.user?.role === 'analyst' || $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
@@ -195,6 +204,250 @@
 			'Rows added',
 			`${newRows.length} row${newRows.length !== 1 ? 's' : ''} added (indices ${newRows[0].row_index}${newRows.length > 1 ? `-${newRows[newRows.length - 1].row_index}` : ''})`
 		);
+	}
+
+	// ================================================================
+	// Inline Cell Editing
+	// ================================================================
+
+	// Start editing a cell
+	async function startEditing(row: RowResponse, column: ColumnResponse) {
+		if (!canEdit || savingCell) return;
+
+		const currentValue = row.cells[column.name];
+		editingCell = { rowId: row.id, columnName: column.name };
+		originalValue = currentValue;
+		editValue = currentValue;
+
+		// For boolean, sync to the separate bool binding
+		if (column.data_type === 'boolean') {
+			editBoolValue = currentValue === true;
+		}
+
+		// Wait for DOM update then focus input
+		await tick();
+		if (cellInputRef) {
+			cellInputRef.focus();
+			// Select all text for text/number inputs
+			if ('select' in cellInputRef && typeof cellInputRef.select === 'function') {
+				cellInputRef.select();
+			}
+		}
+	}
+
+	// Cancel editing
+	function cancelEditing() {
+		editingCell = null;
+		editValue = null;
+		editBoolValue = false;
+		originalValue = null;
+	}
+
+	// Save cell value
+	async function saveCell() {
+		if (!editingCell || !table || savingCell) return;
+
+		const { rowId, columnName } = editingCell;
+		const column = table.columns.find(c => c.name === columnName);
+		if (!column) return;
+
+		// For boolean, use the separate binding
+		const rawValue = column.data_type === 'boolean' ? editBoolValue : editValue;
+
+		// Validate and convert value based on data type
+		let valueToSave = rawValue;
+
+		try {
+			valueToSave = validateAndConvertValue(rawValue, column.data_type);
+		} catch (err) {
+			toasts.error('Validation error', (err as Error).message);
+			return;
+		}
+
+		// Check if value actually changed
+		if (valueToSave === originalValue) {
+			cancelEditing();
+			return;
+		}
+
+		// Optimistic update - update UI immediately
+		const rowIndex = table.rows.findIndex(r => r.id === rowId);
+		if (rowIndex === -1) {
+			cancelEditing();
+			return;
+		}
+
+		const previousValue = table.rows[rowIndex].cells[columnName];
+		table.rows[rowIndex].cells[columnName] = valueToSave;
+		table = table; // Trigger reactivity
+
+		savingCell = true;
+		const savedEditingCell = { ...editingCell };
+
+		// Send PATCH request
+		const response = await api.patch<RowResponse>(`/tables/${tableId}/rows/${rowId}`, {
+			[columnName]: valueToSave
+		});
+
+		savingCell = false;
+
+		if (response.error) {
+			// Rollback on error
+			table.rows[rowIndex].cells[columnName] = previousValue;
+			table = table;
+			toasts.error('Failed to save', response.error.message);
+		} else {
+			// Update with server response
+			if (response.data) {
+				table.rows[rowIndex] = response.data;
+				table = table;
+			}
+		}
+
+		// Clear editing state
+		if (editingCell?.rowId === savedEditingCell.rowId && editingCell?.columnName === savedEditingCell.columnName) {
+			cancelEditing();
+		}
+	}
+
+	// Validate and convert value based on data type
+	function validateAndConvertValue(value: string | number | boolean | null, dataType: string): string | number | boolean | null {
+		if (value === null || value === undefined || value === '') {
+			return null;
+		}
+
+		switch (dataType) {
+			case 'integer': {
+				const num = parseInt(String(value), 10);
+				if (isNaN(num)) {
+					throw new Error('Value must be a valid integer');
+				}
+				return num;
+			}
+			case 'decimal': {
+				const num = parseFloat(String(value));
+				if (isNaN(num)) {
+					throw new Error('Value must be a valid number');
+				}
+				return num;
+			}
+			case 'boolean': {
+				if (typeof value === 'boolean') return value;
+				const str = String(value).toLowerCase();
+				if (str === 'true' || str === '1' || str === 'yes') return true;
+				if (str === 'false' || str === '0' || str === 'no') return false;
+				throw new Error('Value must be true/false');
+			}
+			case 'date': {
+				const str = String(value);
+				// Validate date format (YYYY-MM-DD)
+				if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+					throw new Error('Date must be in YYYY-MM-DD format');
+				}
+				const date = new Date(str);
+				if (isNaN(date.getTime())) {
+					throw new Error('Invalid date');
+				}
+				return str;
+			}
+			case 'text':
+			default:
+				return String(value);
+		}
+	}
+
+	// Handle keyboard events in edit mode
+	function handleKeyDown(event: KeyboardEvent, row: RowResponse, column: ColumnResponse) {
+		if (!editingCell) return;
+
+		switch (event.key) {
+			case 'Escape':
+				event.preventDefault();
+				cancelEditing();
+				break;
+			case 'Enter':
+				if (column.data_type !== 'text') {
+					// For non-text types, Enter commits and moves down
+					event.preventDefault();
+					saveAndMoveDown(row, column);
+				} else if (!event.shiftKey) {
+					// For text, regular Enter commits and moves down
+					event.preventDefault();
+					saveAndMoveDown(row, column);
+				}
+				// Shift+Enter in text creates newline (default behavior)
+				break;
+			case 'Tab':
+				event.preventDefault();
+				if (event.shiftKey) {
+					saveAndMovePrevious(row, column);
+				} else {
+					saveAndMoveNext(row, column);
+				}
+				break;
+		}
+	}
+
+	// Save and move to next cell (Tab)
+	async function saveAndMoveNext(row: RowResponse, column: ColumnResponse) {
+		await saveCell();
+		if (!table) return;
+
+		const colIndex = sortedColumns.findIndex(c => c.name === column.name);
+		const rowIndex = table.rows.findIndex(r => r.id === row.id);
+
+		// Move to next column in same row
+		if (colIndex < sortedColumns.length - 1) {
+			startEditing(table.rows[rowIndex], sortedColumns[colIndex + 1]);
+		} else if (rowIndex < table.rows.length - 1) {
+			// Move to first column of next row
+			startEditing(table.rows[rowIndex + 1], sortedColumns[0]);
+		}
+	}
+
+	// Save and move to previous cell (Shift+Tab)
+	async function saveAndMovePrevious(row: RowResponse, column: ColumnResponse) {
+		await saveCell();
+		if (!table) return;
+
+		const colIndex = sortedColumns.findIndex(c => c.name === column.name);
+		const rowIndex = table.rows.findIndex(r => r.id === row.id);
+
+		// Move to previous column in same row
+		if (colIndex > 0) {
+			startEditing(table.rows[rowIndex], sortedColumns[colIndex - 1]);
+		} else if (rowIndex > 0) {
+			// Move to last column of previous row
+			startEditing(table.rows[rowIndex - 1], sortedColumns[sortedColumns.length - 1]);
+		}
+	}
+
+	// Save and move down (Enter)
+	async function saveAndMoveDown(row: RowResponse, column: ColumnResponse) {
+		await saveCell();
+		if (!table) return;
+
+		const rowIndex = table.rows.findIndex(r => r.id === row.id);
+
+		// Move to same column in next row
+		if (rowIndex < table.rows.length - 1) {
+			startEditing(table.rows[rowIndex + 1], column);
+		}
+	}
+
+	// Check if a cell is currently being edited
+	function isEditing(rowId: string, columnName: string): boolean {
+		return editingCell?.rowId === rowId && editingCell?.columnName === columnName;
+	}
+
+	// Handle blur event - save on blur unless clicking another cell
+	function handleBlur(_event: FocusEvent) {
+		// Small delay to check if focus moved to another cell
+		setTimeout(() => {
+			if (editingCell && !savingCell) {
+				saveCell();
+			}
+		}, 100);
 	}
 
 	onMount(() => {
@@ -430,13 +683,66 @@
 											{#each sortedColumns as column}
 												{@const cellValue = row.cells[column.name]}
 												{@const formattedValue = formatCellValue(cellValue, column.data_type)}
+												{@const editing = isEditing(row.id, column.name)}
 												<td
 													class="data-cell"
-													class:empty-cell={cellValue === null || cellValue === undefined || cellValue === ''}
+													class:empty-cell={!editing && (cellValue === null || cellValue === undefined || cellValue === '')}
 													class:boolean-cell={column.data_type === 'boolean'}
 													class:number-cell={column.data_type === 'integer' || column.data_type === 'decimal'}
+													class:editable={canEdit}
+													class:editing={editing}
+													on:click={() => !editing && canEdit && startEditing(row, column)}
+													on:keydown={(e) => e.key === 'Enter' && !editing && canEdit && startEditing(row, column)}
+													tabindex={canEdit && !editing ? 0 : -1}
+													role={canEdit ? 'gridcell' : undefined}
 												>
-													{#if cellValue === null || cellValue === undefined || cellValue === ''}
+													{#if editing}
+														<!-- Edit mode: show appropriate input based on data type -->
+														<div class="cell-editor" role="presentation" on:keydown={(e) => handleKeyDown(e, row, column)}>
+															{#if column.data_type === 'boolean'}
+																<Checkbox
+																	bind:checked={editBoolValue}
+																	on:blur={handleBlur}
+																	labelText=""
+																	hideLabel
+																/>
+															{:else if column.data_type === 'integer'}
+																<input
+																	type="number"
+																	class="cell-input number-input"
+																	bind:value={editValue}
+																	bind:this={cellInputRef}
+																	on:blur={handleBlur}
+																	step="1"
+																/>
+															{:else if column.data_type === 'decimal'}
+																<input
+																	type="number"
+																	class="cell-input number-input"
+																	bind:value={editValue}
+																	bind:this={cellInputRef}
+																	on:blur={handleBlur}
+																	step="any"
+																/>
+															{:else if column.data_type === 'date'}
+																<input
+																	type="date"
+																	class="cell-input date-input"
+																	bind:value={editValue}
+																	bind:this={cellInputRef}
+																	on:blur={handleBlur}
+																/>
+															{:else}
+																<input
+																	type="text"
+																	class="cell-input text-input"
+																	bind:value={editValue}
+																	bind:this={cellInputRef}
+																	on:blur={handleBlur}
+																/>
+															{/if}
+														</div>
+													{:else if cellValue === null || cellValue === undefined || cellValue === ''}
 														<span class="empty-placeholder">—</span>
 													{:else}
 														{formattedValue}
@@ -695,5 +1001,77 @@
 
 	.separator {
 		margin: 0 0.5rem;
+	}
+
+	/* Editable cell styles */
+	.data-cell.editable {
+		cursor: pointer;
+		transition: background-color 0.1s ease;
+	}
+
+	.data-cell.editable:hover {
+		background: var(--cds-layer-selected-01, #e0e0e0);
+	}
+
+	.data-cell.editable:focus {
+		outline: 2px solid var(--cds-focus, #0f62fe);
+		outline-offset: -2px;
+	}
+
+	.data-cell.editing {
+		padding: 0;
+		background: var(--cds-layer-02, #ffffff);
+	}
+
+	.cell-editor {
+		width: 100%;
+		height: 100%;
+		display: flex;
+		align-items: center;
+	}
+
+	.cell-input {
+		width: 100%;
+		padding: 0.5rem 1rem;
+		border: 2px solid var(--cds-focus, #0f62fe);
+		background: var(--cds-field-01, #ffffff);
+		font-size: 0.875rem;
+		font-family: inherit;
+		outline: none;
+	}
+
+	.cell-input:focus {
+		border-color: var(--cds-focus, #0f62fe);
+	}
+
+	.cell-input.number-input {
+		text-align: right;
+		font-variant-numeric: tabular-nums;
+	}
+
+	.cell-input.date-input {
+		min-width: 150px;
+	}
+
+	/* Carbon Checkbox in cell */
+	.cell-editor :global(.bx--checkbox-wrapper) {
+		justify-content: center;
+		padding: 0.5rem 1rem;
+	}
+
+	.cell-editor :global(.bx--checkbox-label) {
+		padding-left: 0;
+	}
+
+	/* Remove spinner buttons from number inputs */
+	.cell-input.number-input::-webkit-outer-spin-button,
+	.cell-input.number-input::-webkit-inner-spin-button {
+		-webkit-appearance: none;
+		margin: 0;
+	}
+
+	.cell-input.number-input {
+		appearance: textfield;
+		-moz-appearance: textfield;
 	}
 </style>
