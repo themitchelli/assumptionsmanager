@@ -23,6 +23,7 @@
 	import AddColumnModal from '$lib/components/AddColumnModal.svelte';
 	import AddMultipleRowsModal from '$lib/components/AddMultipleRowsModal.svelte';
 	import DeleteRowsModal from '$lib/components/DeleteRowsModal.svelte';
+	import DeleteTableModal from '$lib/components/DeleteTableModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -36,6 +37,7 @@
 	let showAddColumnModal = false;
 	let showAddMultipleRowsModal = false;
 	let showDeleteRowsModal = false;
+	let showDeleteTableModal = false;
 
 	// Row creation state
 	let addingRow = false;
@@ -56,6 +58,7 @@
 
 	// Role-based permissions
 	$: canEdit = $auth.user?.role === 'analyst' || $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
+	$: canDelete = $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
 
 	// Get existing column names for validation
 	$: existingColumnNames = table?.columns.map((c) => c.name) || [];
@@ -110,6 +113,13 @@
 			'Rows deleted',
 			`${deletedIds.length} row${deletedIds.length !== 1 ? 's' : ''} deleted successfully`
 		);
+	}
+
+	// Handle table deletion
+	function handleTableDeleted() {
+		showDeleteTableModal = false;
+		toasts.success('Table deleted', `Table "${table?.name}" has been deleted`);
+		goto('/tables');
 	}
 
 	// Fetch table data
@@ -630,6 +640,15 @@
 										Add Column
 									</Button>
 								{/if}
+								{#if canDelete}
+									<Button
+										kind="danger-ghost"
+										icon={TrashCan}
+										on:click={() => (showDeleteTableModal = true)}
+									>
+										Delete Table
+									</Button>
+								{/if}
 							</div>
 						{/if}
 					</div>
@@ -900,6 +919,18 @@
 	on:close={() => (showDeleteRowsModal = false)}
 	on:deleted={handleRowsDeleted}
 />
+
+<!-- Delete Table Modal -->
+{#if table}
+	<DeleteTableModal
+		bind:open={showDeleteTableModal}
+		tableId={tableId}
+		tableName={table.name}
+		rowCount={table.rows.length}
+		on:close={() => (showDeleteTableModal = false)}
+		on:deleted={handleTableDeleted}
+	/>
+{/if}
 
 <style>
 	:global(.back-button) {
