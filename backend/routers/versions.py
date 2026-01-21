@@ -25,6 +25,7 @@ router = APIRouter(prefix="/tables", tags=["versions"])
 pending_router = APIRouter(prefix="/versions", tags=["versions"])
 
 WRITE_ROLES = {"analyst", "admin", "super_admin"}
+ADMIN_ROLES = {"admin", "super_admin"}
 
 
 @pending_router.get("/pending", response_model=PendingApprovalsResponse)
@@ -709,7 +710,7 @@ async def approve_version(
     Records the reviewer and timestamp.
     Creates an entry in approval_history for audit trail.
     """
-    if current_user.role != "admin":
+    if current_user.role not in ADMIN_ROLES:
         raise HTTPException(
             status_code=403,
             detail="Only admin can approve versions"
@@ -805,7 +806,7 @@ async def reject_version(
 
     Comment is required to help the analyst understand what needs to be fixed.
     """
-    if current_user.role != "admin":
+    if current_user.role not in ADMIN_ROLES:
         raise HTTPException(
             status_code=403,
             detail="Only admin can reject versions"
@@ -1122,7 +1123,7 @@ async def delete_version(
     current_user: TokenData = Depends(get_current_user)
 ):
     """Delete a version snapshot (admin only)"""
-    if current_user.role != "admin":
+    if current_user.role not in ADMIN_ROLES:
         raise HTTPException(
             status_code=403,
             detail="Only admin can delete versions"
