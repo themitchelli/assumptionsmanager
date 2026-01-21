@@ -349,3 +349,13 @@ export interface PendingApprovalsResponse {
 	total_count: number;
 	items: PendingApprovalItem[];
 }
+
+// ============================================================
+// Dashboard Statistics Types
+// ============================================================
+
+export interface DashboardStatsResponse {
+	table_count: number;
+	recent_activity_count: number;
+	version_count: number;
+}

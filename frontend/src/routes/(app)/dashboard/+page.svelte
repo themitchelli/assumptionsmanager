@@ -1,14 +1,44 @@
 <script lang="ts">
-	import { Grid, Row, Column, Tile, ClickableTile } from 'carbon-components-svelte';
+	import {
+		Grid,
+		Row,
+		Column,
+		Tile,
+		ClickableTile,
+		SkeletonText
+	} from 'carbon-components-svelte';
 	import TableSplit from 'carbon-icons-svelte/lib/TableSplit.svelte';
 	import Upload from 'carbon-icons-svelte/lib/Upload.svelte';
 	import { auth, isAdmin } from '$lib/stores/auth';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { onMount } from 'svelte';
 	import PendingApprovalsCard from '$lib/components/PendingApprovalsCard.svelte';
+	import { api } from '$lib/api';
+	import type { DashboardStatsResponse } from '$lib/api/types';
+
+	let stats: DashboardStatsResponse | null = null;
+	let loading = true;
+	let error: string | null = null;
+
+	async function loadStats() {
+		loading = true;
+		error = null;
+
+		const response = await api.get<DashboardStatsResponse>('/dashboard/stats');
+
+		if (response.error) {
+			error = response.error.message;
+			stats = null;
+		} else if (response.data) {
+			stats = response.data;
+		}
+
+		loading = false;
+	}
 
 	onMount(() => {
 		breadcrumbs.set([{ label: 'Dashboard' }]);
+		loadStats();
 	});
 </script>
 
@@ -34,21 +64,33 @@
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
 				<span class="stat-title">Tables</span>
-				<span class="stat-value">--</span>
+				{#if loading}
+					<SkeletonText class="stat-skeleton" />
+				{:else}
+					<span class="stat-value">{error ? '--' : stats?.table_count ?? 0}</span>
+				{/if}
 				<span class="stat-description">Assumption tables in your tenant</span>
 			</Tile>
 		</Column>
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
 				<span class="stat-title">Recent Activity</span>
-				<span class="stat-value">--</span>
+				{#if loading}
+					<SkeletonText class="stat-skeleton" />
+				{:else}
+					<span class="stat-value">{error ? '--' : stats?.recent_activity_count ?? 0}</span>
+				{/if}
 				<span class="stat-description">Updates in the last 7 days</span>
 			</Tile>
 		</Column>
 		<Column sm={4} md={4} lg={4}>
 			<Tile class="stat-tile">
 				<span class="stat-title">Versions</span>
-				<span class="stat-value">--</span>
+				{#if loading}
+					<SkeletonText class="stat-skeleton" />
+				{:else}
+					<span class="stat-value">{error ? '--' : stats?.version_count ?? 0}</span>
+				{/if}
 				<span class="stat-description">Total version snapshots</span>
 			</Tile>
 		</Column>
@@ -124,6 +166,12 @@
 	:global(.stat-tile .stat-value) {
 		font-size: 2.5rem;
 		font-weight: 300;
+		margin-bottom: 0.5rem;
+	}
+
+	:global(.stat-tile .stat-skeleton) {
+		height: 2.5rem;
+		width: 3rem;
 		margin-bottom: 0.5rem;
 	}
 

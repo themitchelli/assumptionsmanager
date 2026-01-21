@@ -469,3 +469,12 @@ class PendingApprovalsResponse(BaseModel):
     """Response containing pending approvals for admin dashboard"""
     total_count: int
     items: list[PendingApprovalItem]
+
+
+# Dashboard Statistics schemas (PRD-020)
+
+class DashboardStatsResponse(BaseModel):
+    """Dashboard statistics for the current tenant"""
+    table_count: int  # Total assumption tables in tenant
+    recent_activity_count: int  # Tables updated in last 7 days
+    version_count: int  # Total version snapshots across all tables
