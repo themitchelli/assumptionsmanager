@@ -22,10 +22,20 @@
 	let submitting = false;
 	let error: string | null = null;
 
-	// Reset form when modal opens/closes or user changes
-	$: if (open || user) {
-		confirmationEmail = '';
-		error = null;
+	// Track previous state to detect transitions
+	let prevOpen = false;
+	let prevUserId: string | null = null;
+
+	// Reset form when modal opens or user changes
+	$: {
+		const currentUserId = user?.id ?? null;
+		// Only reset when transitioning from closed to open, or when user changes while open
+		if ((!prevOpen && open) || (open && currentUserId !== prevUserId)) {
+			confirmationEmail = '';
+			error = null;
+		}
+		prevOpen = open;
+		prevUserId = currentUserId;
 	}
 
 	// Check if email confirmation matches
