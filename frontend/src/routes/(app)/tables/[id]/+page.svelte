@@ -152,12 +152,13 @@
 		loading = false;
 	}
 
-	// Handle page change
-	function handlePageChange(event: CustomEvent<{ page: number; pageSize: number }>) {
-		currentPage = event.detail.page;
-		pageSize = event.detail.pageSize;
+	// Handle page change - use bound values since Carbon updates them before firing event
+	function handlePageChange() {
 		clearSelection();
-		fetchTable(currentPage, pageSize);
+		// Use tick to ensure bound values are updated
+		setTimeout(() => {
+			fetchTable(currentPage, pageSize);
+		}, 0);
 	}
 
 	// Format date for display
