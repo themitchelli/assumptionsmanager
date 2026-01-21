@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
+.DS_Store
 # FADE working files (keep out of version control)
 prompt.md
 progress.md
