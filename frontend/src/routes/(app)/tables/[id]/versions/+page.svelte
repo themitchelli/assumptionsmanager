@@ -21,6 +21,7 @@
 	import { toasts } from '$lib/stores/toast';
 	import { api } from '$lib/api';
 	import type { VersionListResponse, TableListResponse } from '$lib/api/types';
+	import CreateSnapshotModal from '$lib/components/CreateSnapshotModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -44,6 +45,9 @@
 	// Selection state for comparison
 	let selectedVersionIds: string[] = [];
 	$: canCompare = selectedVersionIds.length === 2;
+
+	// Modal state
+	let showCreateModal = false;
 
 	// DataTable headers
 	const headers = [
@@ -194,10 +198,23 @@
 		goto(`/tables/${tableId}`);
 	}
 
-	// Navigate to create snapshot (placeholder for US-002)
+	// Open create snapshot modal
 	function handleCreateSnapshot() {
-		// Will be implemented in US-002
-		toasts.info('Coming soon', 'Create snapshot functionality will be available soon');
+		showCreateModal = true;
+	}
+
+	// Handle snapshot created
+	function handleSnapshotCreated(event: CustomEvent<VersionListResponse>) {
+		const newVersion = event.detail;
+		toasts.success('Snapshot created', `Version ${newVersion.version_number} has been created`);
+		showCreateModal = false;
+		// Refresh the version list
+		fetchVersions();
+	}
+
+	// Handle modal close
+	function handleModalClose() {
+		showCreateModal = false;
 	}
 
 	onMount(() => {
@@ -326,6 +343,12 @@
 									<Button kind="primary" icon={Add} on:click={handleCreateSnapshot}>
 										Create Snapshot
 									</Button>
+								{:else}
+									<div title="Only analysts and admins can create snapshots">
+										<Button kind="primary" icon={Add} disabled>
+											Create Snapshot
+										</Button>
+									</div>
 								{/if}
 							</ToolbarContent>
 						</Toolbar>
@@ -397,6 +420,14 @@
 		{/if}
 	{/if}
 </Grid>
+
+<!-- Create Snapshot Modal -->
+<CreateSnapshotModal
+	bind:open={showCreateModal}
+	{tableId}
+	on:created={handleSnapshotCreated}
+	on:close={handleModalClose}
+/>
 
 <style>
 	:global(.back-button) {
