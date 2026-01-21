@@ -14,7 +14,7 @@
 		ToastNotification,
 		Checkbox
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Calendar, Time, Add, RowInsert, TrashCan } from 'carbon-icons-svelte';
+	import { ArrowLeft, Calendar, Time, Add, RowInsert, TrashCan, RecentlyViewed } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -598,8 +598,8 @@
 				<div class="table-header">
 					<div class="table-header-top">
 						<h1 class="table-name">{table.name}</h1>
-						{#if canEdit}
-							<div class="header-actions">
+						<div class="header-actions">
+							{#if canEdit}
 								{#if selectedRowCount > 0}
 									<Button
 										kind="danger"
@@ -649,8 +649,16 @@
 										Delete Table
 									</Button>
 								{/if}
-							</div>
-						{/if}
+							{/if}
+							<!-- Version History visible to all users -->
+							<Button
+								kind="ghost"
+								icon={RecentlyViewed}
+								on:click={() => goto(`/tables/${tableId}/versions`)}
+							>
+								Version History
+							</Button>
+						</div>
 					</div>
 					{#if table.description}
 						<p class="table-description">{table.description}</p>
