@@ -52,13 +52,13 @@
 		<HeaderAction bind:isOpen={isUserPanelOpen} icon={UserAvatar}>
 			<HeaderPanelLinks>
 				{#if $auth.user}
-					<HeaderPanelLink class="user-info">
-						<span class="user-name">{$auth.user.name || $auth.user.email}</span>
-						<span class="user-role">{$auth.user.role}</span>
+					<div class="user-info-panel">
+						<div class="user-name">{$auth.user.name || $auth.user.email}</div>
+						<div class="user-role">{$auth.user.role}</div>
 						{#if $auth.user.tenant_name}
-							<span class="user-tenant">{$auth.user.tenant_name}</span>
+							<div class="user-tenant">{$auth.user.tenant_name}</div>
 						{/if}
-					</HeaderPanelLink>
+					</div>
 					<HeaderPanelDivider />
 				{/if}
 				<HeaderPanelLink href="/settings">
@@ -133,35 +133,28 @@
 		padding-top: 1rem;
 	}
 
-	:global(.user-info) {
+	:global(.user-info-panel) {
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
 		padding: 1rem;
-		cursor: default;
 	}
 
-	:global(.user-info:hover) {
-		background-color: transparent;
-	}
-
-	:global(.user-name) {
-		display: block;
+	:global(.user-info-panel .user-name) {
 		font-weight: 600;
 		font-size: 0.875rem;
 		line-height: 1.4;
+		color: var(--cds-text-primary);
 	}
 
-	:global(.user-role) {
-		display: block;
+	:global(.user-info-panel .user-role) {
 		font-size: 0.75rem;
 		color: var(--cds-text-secondary);
 		text-transform: capitalize;
 		line-height: 1.4;
 	}
 
-	:global(.user-tenant) {
-		display: block;
+	:global(.user-info-panel .user-tenant) {
 		font-size: 0.75rem;
 		color: var(--cds-text-helper);
 		line-height: 1.4;
