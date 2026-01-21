@@ -16,7 +16,7 @@
 		Tooltip,
 		Dropdown
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt, Checkmark } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt, Checkmark, Close } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -26,6 +26,7 @@
 	import RestoreVersionModal from '$lib/components/RestoreVersionModal.svelte';
 	import SubmitForApprovalModal from '$lib/components/SubmitForApprovalModal.svelte';
 	import ApproveVersionModal from '$lib/components/ApproveVersionModal.svelte';
+	import RejectVersionModal from '$lib/components/RejectVersionModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -74,6 +75,8 @@
 	let submitVersion: VersionListResponse | null = null;
 	let showApproveModal = false;
 	let approveVersion: VersionListResponse | null = null;
+	let showRejectModal = false;
+	let rejectVersion: VersionListResponse | null = null;
 
 	// Status filter state
 	let statusFilter: string = 'all';
@@ -371,6 +374,27 @@
 		approveVersion = null;
 	}
 
+	// Open reject modal
+	function handleReject(version: VersionListResponse) {
+		rejectVersion = version;
+		showRejectModal = true;
+	}
+
+	// Handle version rejected
+	function handleVersionRejected(_event: CustomEvent<VersionListResponse>) {
+		toasts.warning('Version rejected', `Version ${rejectVersion?.version_number} has been rejected`);
+		showRejectModal = false;
+		rejectVersion = null;
+		// Refresh the version list to show updated status
+		fetchVersions();
+	}
+
+	// Handle reject modal close
+	function handleRejectModalClose() {
+		showRejectModal = false;
+		rejectVersion = null;
+	}
+
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
@@ -632,6 +656,18 @@
 										>
 											Approve
 										</Button>
+										<Button
+											kind="danger-ghost"
+											size="small"
+											icon={Close}
+											iconDescription="Reject this version"
+											on:click={(e) => {
+												e.stopPropagation();
+												handleReject(version);
+											}}
+										>
+											Reject
+										</Button>
 									{/if}
 								</div>
 							{:else}
@@ -730,6 +766,21 @@
 		submittedAt={approveVersion.submitted_at}
 		on:approved={handleVersionApproved}
 		on:close={handleApproveModalClose}
+	/>
+{/if}
+
+<!-- Reject Version Modal -->
+{#if rejectVersion}
+	<RejectVersionModal
+		bind:open={showRejectModal}
+		{tableId}
+		{tableName}
+		versionId={rejectVersion.id}
+		versionNumber={rejectVersion.version_number}
+		submittedBy={rejectVersion.submitted_by_name}
+		submittedAt={rejectVersion.submitted_at}
+		on:rejected={handleVersionRejected}
+		on:close={handleRejectModalClose}
 	/>
 {/if}
 
