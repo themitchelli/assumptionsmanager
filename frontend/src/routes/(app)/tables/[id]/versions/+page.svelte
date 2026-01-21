@@ -14,9 +14,10 @@
 		Tag,
 		ToastNotification,
 		Tooltip,
-		Dropdown
+		Dropdown,
+		InlineNotification
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt, Checkmark, Close } from 'carbon-icons-svelte';
+	import { ArrowLeft, Add, Compare, Time, User, ChevronRight, Restart, SendAlt, Checkmark, Close, Locked } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
@@ -606,20 +607,31 @@
 								{@const version = versions.find((v) => v.id === row.id)}
 								{@const tag = getStatusTag(cell.value)}
 								{@const tooltip = version ? getStatusTooltip(version) : null}
-								{#if tooltip}
-									<Tooltip direction="top">
-										<span slot="triggerText">
-											<Tag type={tag.type} size="sm">{tag.text}</Tag>
-										</span>
-										<div class="status-tooltip">
-											{#each tooltip.split('\n') as line}
-												<div>{line}</div>
-											{/each}
-										</div>
-									</Tooltip>
-								{:else}
-									<Tag type={tag.type} size="sm">{tag.text}</Tag>
-								{/if}
+								{@const isApproved = cell.value === 'approved'}
+								<div class="status-cell">
+									{#if tooltip}
+										<Tooltip direction="top">
+											<span slot="triggerText">
+												<Tag type={tag.type} size="sm">{tag.text}</Tag>
+											</span>
+											<div class="status-tooltip">
+												{#each tooltip.split('\n') as line}
+													<div>{line}</div>
+												{/each}
+											</div>
+										</Tooltip>
+									{:else}
+										<Tag type={tag.type} size="sm">{tag.text}</Tag>
+									{/if}
+									{#if isApproved}
+										<Tooltip direction="top">
+											<span slot="triggerText" class="lock-icon">
+												<Locked size={16} />
+											</span>
+											Approved versions are locked for audit compliance
+										</Tooltip>
+									{/if}
+								</div>
 							{:else if cell.key === 'actions'}
 								{@const version = versions.find((v) => v.id === row.id)}
 								{@const hasPrevious = version ? getPreviousVersion(version) !== null : false}
@@ -715,34 +727,49 @@
 						</svelte:fragment>
 
 						<svelte:fragment slot="expanded-row" let:row>
+							{@const expandedVersion = versions.find((v) => v.id === row.id)}
+							{@const isExpandedApproved = expandedVersion?.approval_status === 'approved'}
 							<div class="expanded-content">
-								<div class="expanded-details">
-									{#if versionDetails.get(row.id)?.loading}
-										<SkeletonText width="200px" />
-									{:else}
-										<div class="detail-row">
-											<strong>Full comment:</strong>
-											<span>{versions.find((v) => v.id === row.id)?.comment || ''}</span>
-										</div>
-										<div class="detail-row">
-											<strong>Cell count:</strong>
-											<span>{versionDetails.get(row.id)?.cell_count || 0} cells</span>
-										</div>
-										<div class="detail-row">
-											<strong>Created:</strong>
-											<span
-												>{formatAbsoluteTime(
-													versions.find((v) => v.id === row.id)?.created_at || ''
-												)}</span
-											>
-										</div>
-									{/if}
-								</div>
-								<div class="expanded-history">
-									<ApprovalHistoryPanel
-										{tableId}
-										versionId={row.id}
-									/>
+								{#if isExpandedApproved}
+									<div class="approved-banner">
+										<InlineNotification
+											kind="info"
+											title="This version is approved and cannot be modified"
+											subtitle="Approved versions are locked for audit compliance. Any changes to the table will require a new version snapshot."
+											lowContrast
+											hideCloseButton
+										/>
+									</div>
+								{/if}
+								<div class="expanded-main">
+									<div class="expanded-details">
+										{#if versionDetails.get(row.id)?.loading}
+											<SkeletonText width="200px" />
+										{:else}
+											<div class="detail-row">
+												<strong>Full comment:</strong>
+												<span>{expandedVersion?.comment || ''}</span>
+											</div>
+											<div class="detail-row">
+												<strong>Cell count:</strong>
+												<span>{versionDetails.get(row.id)?.cell_count || 0} cells</span>
+											</div>
+											<div class="detail-row">
+												<strong>Created:</strong>
+												<span
+													>{formatAbsoluteTime(
+														expandedVersion?.created_at || ''
+													)}</span
+												>
+											</div>
+										{/if}
+									</div>
+									<div class="expanded-history">
+										<ApprovalHistoryPanel
+											{tableId}
+											versionId={row.id}
+										/>
+									</div>
 								</div>
 							</div>
 						</svelte:fragment>
@@ -937,9 +964,23 @@
 
 	.expanded-content {
 		display: flex;
-		gap: 2rem;
+		flex-direction: column;
+		gap: 1rem;
 		padding: 1rem 2rem;
 		background: var(--cds-layer-01, #f4f4f4);
+	}
+
+	.approved-banner {
+		margin-bottom: 0.5rem;
+	}
+
+	.approved-banner :global(.bx--inline-notification) {
+		max-width: none;
+	}
+
+	.expanded-main {
+		display: flex;
+		gap: 2rem;
 	}
 
 	.expanded-details {
@@ -962,7 +1003,7 @@
 	}
 
 	@media (max-width: 768px) {
-		.expanded-content {
+		.expanded-main {
 			flex-direction: column;
 		}
 
@@ -1010,5 +1051,22 @@
 
 	.status-tooltip div {
 		white-space: nowrap;
+	}
+
+	.status-cell {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.lock-icon {
+		display: inline-flex;
+		align-items: center;
+		color: var(--cds-text-secondary, #525252);
+		cursor: help;
+	}
+
+	.lock-icon :global(svg) {
+		fill: currentColor;
 	}
 </style>

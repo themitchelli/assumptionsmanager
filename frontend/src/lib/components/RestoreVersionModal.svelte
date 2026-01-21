@@ -116,15 +116,15 @@
 			<InlineNotification
 				kind="warning"
 				title="Warning"
-				subtitle="This version is not approved. Restoring it will overwrite any approved data. A new version snapshot will be created automatically after restore for audit trail."
+				subtitle="This version is not approved. Restoring it will overwrite any approved data. A new draft version will be created automatically after restore for audit trail."
 				lowContrast
 				hideCloseButton
 			/>
 		{:else}
 			<InlineNotification
 				kind="info"
-				title="Audit trail"
-				subtitle="A new version snapshot will be created automatically after restore to maintain the audit trail."
+				title="Restoring will create a new draft version"
+				subtitle="A new draft version snapshot will be created automatically after restore to maintain the audit trail. The new version will require approval before it can be used in production."
 				lowContrast
 				hideCloseButton
 			/>
