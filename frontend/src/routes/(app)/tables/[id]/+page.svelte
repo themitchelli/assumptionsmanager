@@ -13,13 +13,14 @@
 		SkeletonPlaceholder,
 		ToastNotification
 	} from 'carbon-components-svelte';
-	import { ArrowLeft, Calendar, Time, Add } from 'carbon-icons-svelte';
+	import { ArrowLeft, Calendar, Time, Add, RowInsert } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { auth } from '$lib/stores/auth';
 	import { toasts } from '$lib/stores/toast';
 	import { api } from '$lib/api';
-	import type { TableDetailResponse, ColumnResponse } from '$lib/api/types';
+	import type { TableDetailResponse, ColumnResponse, RowResponse, CellData } from '$lib/api/types';
 	import AddColumnModal from '$lib/components/AddColumnModal.svelte';
+	import AddMultipleRowsModal from '$lib/components/AddMultipleRowsModal.svelte';
 
 	// Get table ID from route
 	$: tableId = $page.params.id;
@@ -31,6 +32,10 @@
 
 	// Modal state
 	let showAddColumnModal = false;
+	let showAddMultipleRowsModal = false;
+
+	// Row creation state
+	let addingRow = false;
 
 	// Role-based permissions
 	$: canEdit = $auth.user?.role === 'analyst' || $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
@@ -144,6 +149,54 @@
 		toasts.success('Column added', `Column "${newColumn.name}" has been added to the table`);
 	}
 
+	// Handle single row add
+	async function handleAddRow() {
+		if (!table || sortedColumns.length === 0) {
+			toasts.error('Cannot add row', 'Table must have at least one column defined');
+			return;
+		}
+
+		addingRow = true;
+
+		// Create a single empty row
+		const emptyRow: { cells: CellData } = { cells: {} };
+		const response = await api.post<RowResponse[]>(`/tables/${tableId}/rows`, { rows: [emptyRow] });
+
+		if (response.error) {
+			toasts.error('Failed to add row', response.error.message);
+			addingRow = false;
+			return;
+		}
+
+		if (response.data && response.data.length > 0) {
+			const newRow = response.data[0];
+			// Add new row to table
+			table = {
+				...table,
+				rows: [...table.rows, newRow]
+			};
+			toasts.success('Row added', `Row ${newRow.row_index} has been added`);
+		}
+
+		addingRow = false;
+	}
+
+	// Handle multiple rows created from modal
+	function handleMultipleRowsCreated(event: CustomEvent<RowResponse[]>) {
+		const newRows = event.detail;
+		if (table && newRows.length > 0) {
+			table = {
+				...table,
+				rows: [...table.rows, ...newRows]
+			};
+		}
+		showAddMultipleRowsModal = false;
+		toasts.success(
+			'Rows added',
+			`${newRows.length} row${newRows.length !== 1 ? 's' : ''} added (indices ${newRows[0].row_index}${newRows.length > 1 ? `-${newRows[newRows.length - 1].row_index}` : ''})`
+		);
+	}
+
 	onMount(() => {
 		// Set initial breadcrumbs (will update when data loads)
 		breadcrumbs.set([
@@ -223,13 +276,31 @@
 					<div class="table-header-top">
 						<h1 class="table-name">{table.name}</h1>
 						{#if canEdit}
-							<Button
-								kind="primary"
-								icon={Add}
-								on:click={() => (showAddColumnModal = true)}
-							>
-								Add Column
-							</Button>
+							<div class="header-actions">
+								<Button
+									kind="tertiary"
+									icon={RowInsert}
+									on:click={handleAddRow}
+									disabled={addingRow || sortedColumns.length === 0}
+								>
+									{addingRow ? 'Adding...' : 'Add Row'}
+								</Button>
+								<Button
+									kind="ghost"
+									size="small"
+									on:click={() => (showAddMultipleRowsModal = true)}
+									disabled={addingRow || sortedColumns.length === 0}
+								>
+									Add Multiple
+								</Button>
+								<Button
+									kind="primary"
+									icon={Add}
+									on:click={() => (showAddColumnModal = true)}
+								>
+									Add Column
+								</Button>
+							</div>
 						{/if}
 					</div>
 					{#if table.description}
@@ -314,7 +385,20 @@
 								<tbody>
 									<tr>
 										<td colspan={sortedColumns.length + 1} class="empty-rows">
-											<p>No data rows. Add rows to enter data.</p>
+											<div class="empty-rows-content">
+												<p>No data rows. Add rows to enter data.</p>
+												{#if canEdit}
+													<Button
+														kind="primary"
+														icon={RowInsert}
+														size="small"
+														on:click={handleAddRow}
+														disabled={addingRow}
+													>
+														Add Row
+													</Button>
+												{/if}
+											</div>
 										</td>
 									</tr>
 								</tbody>
@@ -391,6 +475,14 @@
 	on:created={handleColumnCreated}
 />
 
+<!-- Add Multiple Rows Modal -->
+<AddMultipleRowsModal
+	bind:open={showAddMultipleRowsModal}
+	tableId={tableId}
+	on:close={() => (showAddMultipleRowsModal = false)}
+	on:created={handleMultipleRowsCreated}
+/>
+
 <style>
 	:global(.back-button) {
 		margin-bottom: 1rem;
@@ -413,6 +505,13 @@
 		justify-content: space-between;
 		align-items: flex-start;
 		gap: 1rem;
+	}
+
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-shrink: 0;
 	}
 
 	.table-name {
@@ -556,6 +655,17 @@
 		text-align: center;
 		padding: 2rem 1rem;
 		color: var(--cds-text-secondary, #525252);
+	}
+
+	.empty-rows-content {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.empty-rows-content p {
+		margin: 0;
 	}
 
 	.empty-state {
