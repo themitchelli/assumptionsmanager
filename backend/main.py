@@ -10,7 +10,7 @@ import secrets
 import string
 from uuid import UUID
 
-app = FastAPI(title="Assumptions Manager", version="0.1.0")
+app = FastAPI(title="Assumptions Manager", version="0.1.0", root_path="/api")
 
 app.include_router(auth.router)
 app.include_router(users.router)
