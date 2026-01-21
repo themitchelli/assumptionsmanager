@@ -13,7 +13,9 @@
 		Accordion,
 		AccordionItem,
 		Tile,
-		InlineNotification
+		InlineNotification,
+		MultiSelect,
+		InlineLoading
 	} from 'carbon-components-svelte';
 	import {
 		ArrowLeft,
@@ -24,16 +26,19 @@
 		User,
 		Calendar,
 		ChevronDown,
-		ChevronUp
+		ChevronUp,
+		Filter,
+		Close
 	} from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
 	import { api } from '$lib/api';
-	import type { FormattedDiffResponse, TableListResponse, RowChange, DiffCell } from '$lib/api/types';
+	import type { FormattedDiffResponse, TableListResponse, RowChange, DiffCell, ColumnResponse } from '$lib/api/types';
 
 	// Get route params
 	$: tableId = $page.params.id;
 	$: v1 = $page.url.searchParams.get('v1');
 	$: v2 = $page.url.searchParams.get('v2');
+	$: columnsParam = $page.url.searchParams.get('columns');
 
 	// State
 	let diff: FormattedDiffResponse | null = null;
@@ -41,6 +46,11 @@
 	let loading = true;
 	let error: string | null = null;
 	let expandedRows: Set<number> = new Set();
+
+	// Column filter state
+	let allColumns: string[] = [];
+	let selectedColumnIds: string[] = [];
+	let filterLoading = false;
 
 	// Toggle row expansion for full context
 	function toggleRowExpansion(rowIndex: number) {
@@ -147,30 +157,52 @@
 		return types;
 	}
 
+	// Multi-select dropdown items for columns
+	$: columnItems = allColumns.map((col) => ({ id: col, text: col }));
+
+	// Check if filters are active
+	$: hasActiveFilters = selectedColumnIds.length > 0;
+
 	// Fetch diff data
-	async function fetchDiff() {
+	async function fetchDiff(columnsFilter?: string[]) {
 		if (!v1 || !v2) {
 			error = 'Missing version parameters. Please select two versions to compare.';
 			loading = false;
 			return;
 		}
 
-		loading = true;
+		// Use filterLoading for filter changes, loading for initial load
+		if (allColumns.length > 0) {
+			filterLoading = true;
+		} else {
+			loading = true;
+		}
 		error = null;
 
-		// Fetch table info first to get the name
-		const tableResponse = await api.get<TableListResponse[]>('/tables');
-		if (tableResponse.data) {
-			const table = tableResponse.data.find((t) => t.id === tableId);
-			if (table) {
-				tableName = table.name;
+		// Fetch table info and all columns on initial load
+		if (allColumns.length === 0) {
+			const tableResponse = await api.get<{ columns: ColumnResponse[] }>(`/tables/${tableId}`);
+			if (tableResponse.data) {
+				allColumns = tableResponse.data.columns.map((c) => c.name);
+			}
+			// Also get table name from list
+			const listResponse = await api.get<TableListResponse[]>('/tables');
+			if (listResponse.data) {
+				const table = listResponse.data.find((t) => t.id === tableId);
+				if (table) {
+					tableName = table.name;
+				}
 			}
 		}
 
+		// Build URL with column filter
+		let url = `/tables/${tableId}/versions/diff?v1=${v1}&v2=${v2}`;
+		if (columnsFilter && columnsFilter.length > 0) {
+			url += `&columns=${encodeURIComponent(columnsFilter.join(','))}`;
+		}
+
 		// Fetch diff
-		const response = await api.get<FormattedDiffResponse>(
-			`/tables/${tableId}/versions/diff?v1=${v1}&v2=${v2}`
-		);
+		const response = await api.get<FormattedDiffResponse>(url);
 
 		if (response.error) {
 			error = response.error.message;
@@ -187,6 +219,33 @@
 		]);
 
 		loading = false;
+		filterLoading = false;
+	}
+
+	// Update URL with filter params
+	function updateUrlWithFilters(columns: string[]) {
+		const url = new URL(window.location.href);
+		if (columns.length > 0) {
+			url.searchParams.set('columns', columns.join(','));
+		} else {
+			url.searchParams.delete('columns');
+		}
+		// Update URL without triggering navigation
+		window.history.replaceState({}, '', url.toString());
+	}
+
+	// Handle column filter change
+	function handleFilterChange(event: CustomEvent<{ selectedIds: string[] }>) {
+		selectedColumnIds = event.detail.selectedIds;
+		updateUrlWithFilters(selectedColumnIds);
+		fetchDiff(selectedColumnIds.length > 0 ? selectedColumnIds : undefined);
+	}
+
+	// Clear all filters
+	function clearFilters() {
+		selectedColumnIds = [];
+		updateUrlWithFilters([]);
+		fetchDiff();
 	}
 
 	// Navigate back
@@ -194,6 +253,7 @@
 		goto(`/tables/${tableId}/versions`);
 	}
 
+	// Initialize from URL params
 	onMount(() => {
 		breadcrumbs.set([
 			{ label: 'Tables', href: '/tables' },
@@ -201,7 +261,14 @@
 			{ label: 'Versions', href: `/tables/${tableId}/versions` },
 			{ label: 'Compare' }
 		]);
-		fetchDiff();
+
+		// Parse columns from URL if present
+		if (columnsParam) {
+			selectedColumnIds = columnsParam.split(',').filter((c) => c.trim());
+		}
+
+		// Fetch with initial filter if present
+		fetchDiff(selectedColumnIds.length > 0 ? selectedColumnIds : undefined);
 	});
 </script>
 
@@ -381,6 +448,48 @@
 						</div>
 					{/if}
 				</Tile>
+			</Column>
+		</Row>
+
+		<!-- Filter bar -->
+		<Row>
+			<Column>
+				<div class="filter-bar">
+					<div class="filter-controls">
+						<div class="filter-select">
+							<MultiSelect
+								titleText=""
+								label="Filter columns"
+								items={columnItems}
+								selectedIds={selectedColumnIds}
+								on:select={handleFilterChange}
+								size="sm"
+								direction="bottom"
+								disabled={filterLoading}
+							/>
+						</div>
+						{#if hasActiveFilters}
+							<Button
+								kind="ghost"
+								size="small"
+								icon={Close}
+								on:click={clearFilters}
+								disabled={filterLoading}
+							>
+								Clear filters
+							</Button>
+						{/if}
+						{#if filterLoading}
+							<InlineLoading description="Updating..." />
+						{/if}
+					</div>
+					{#if hasActiveFilters}
+						<div class="filter-status">
+							<Filter size={16} />
+							<span>Showing {selectedColumnIds.length} of {allColumns.length} columns</span>
+						</div>
+					{/if}
+				</div>
 			</Column>
 		</Row>
 
@@ -669,6 +778,42 @@
 		font-size: 1.125rem;
 		font-weight: 600;
 		margin-bottom: 1rem;
+	}
+
+	/* Filter bar */
+	.filter-bar {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		align-items: center;
+		gap: 1rem;
+		padding: 0.75rem 1rem;
+		background: var(--cds-layer-01, #f4f4f4);
+		border-radius: 4px;
+		margin-bottom: 1.5rem;
+	}
+
+	.filter-controls {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		flex-wrap: wrap;
+	}
+
+	.filter-select {
+		min-width: 220px;
+	}
+
+	.filter-status {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.875rem;
+		color: var(--cds-text-secondary, #525252);
+	}
+
+	.filter-status :global(svg) {
+		color: var(--cds-icon-secondary, #525252);
 	}
 
 	.stats-grid {
