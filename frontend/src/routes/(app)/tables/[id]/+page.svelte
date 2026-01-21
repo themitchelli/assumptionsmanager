@@ -356,7 +356,7 @@
 
 		// Send PATCH request
 		const response = await api.patch<RowResponse>(`/tables/${tableId}/rows/${rowId}`, {
-			[columnName]: valueToSave
+			cells: { [columnName]: valueToSave }
 		});
 
 		savingCell = false;
