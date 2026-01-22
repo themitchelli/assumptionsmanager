@@ -13,7 +13,8 @@
 		InlineNotification,
 		InlineLoading,
 		DataTable,
-		Tag
+		Tag,
+		ProgressBar
 	} from 'carbon-components-svelte';
 	import { Upload, ArrowLeft, DocumentImport } from 'carbon-icons-svelte';
 	import { breadcrumbs } from '$lib/stores/navigation';
@@ -31,6 +32,7 @@
 	let preview: ImportPreviewResponse | null = null;
 	let loadingPreview = false;
 	let previewError: string | null = null;
+	let uploadProgress = 0; // 0-100
 
 	// Import state
 	let importing = false;
@@ -57,27 +59,51 @@
 
 		loadingPreview = true;
 		previewError = null;
+		uploadProgress = 0;
 
 		const formData = new FormData();
 		formData.append('file', files[0]);
 
 		try {
 			const token = getAuthToken();
-			const response = await fetch('/api/tables/import/csv/preview', {
-				method: 'POST',
-				headers: {
-					'Authorization': `Bearer ${token}`
-				},
-				body: formData
+
+			// Use XMLHttpRequest for upload progress
+			const result = await new Promise<ImportPreviewResponse>((resolve, reject) => {
+				const xhr = new XMLHttpRequest();
+
+				xhr.upload.addEventListener('progress', (e) => {
+					if (e.lengthComputable) {
+						uploadProgress = Math.round((e.loaded / e.total) * 100);
+					}
+				});
+
+				xhr.addEventListener('load', () => {
+					if (xhr.status >= 200 && xhr.status < 300) {
+						try {
+							resolve(JSON.parse(xhr.responseText));
+						} catch {
+							reject(new Error('Invalid response'));
+						}
+					} else {
+						try {
+							const errorData = JSON.parse(xhr.responseText);
+							reject(new Error(errorData.detail || `HTTP ${xhr.status}`));
+						} catch {
+							reject(new Error(`HTTP ${xhr.status}`));
+						}
+					}
+				});
+
+				xhr.addEventListener('error', () => reject(new Error('Network error')));
+				xhr.addEventListener('abort', () => reject(new Error('Upload cancelled')));
+
+				xhr.open('POST', '/api/tables/import/csv/preview');
+				xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+				xhr.send(formData);
 			});
 
-			if (!response.ok) {
-				const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }));
-				previewError = errorData.detail || `HTTP ${response.status}`;
-				preview = null;
-			} else {
-				preview = await response.json();
-			}
+			preview = result;
+			uploadProgress = 100;
 		} catch (err) {
 			previewError = err instanceof Error ? err.message : 'Network error';
 			preview = null;
@@ -212,7 +238,12 @@
 
 					{#if loadingPreview}
 						<div class="loading-container">
-							<InlineLoading description="Analyzing file..." />
+							<ProgressBar
+								value={uploadProgress}
+								max={100}
+								labelText={uploadProgress < 100 ? 'Uploading file...' : 'Processing...'}
+								helperText={uploadProgress < 100 ? `${uploadProgress}%` : 'Analyzing data types'}
+							/>
 						</div>
 					{/if}
 
