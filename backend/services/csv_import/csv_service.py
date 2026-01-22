@@ -591,21 +591,25 @@ class CSVImportService:
         wb = load_workbook(filename=io.BytesIO(content), read_only=True, data_only=True)
         ws = wb.active
 
+        is_header_row = True
+        header_count = 0
+
         for row in ws.iter_rows():
             row_values = []
-            for cell in row:
+            for col_idx, cell in enumerate(row):
                 value = cell.value
-                if value is None:
+                if value is None or (isinstance(value, str) and not value.strip()):
+                    if is_header_row:
+                        # Skip empty header columns - don't include them
+                        continue
                     row_values.append('')
                 elif isinstance(value, datetime):
-                    # Format datetime as date string
                     row_values.append(value.strftime('%Y-%m-%d'))
                 elif isinstance(value, date):
                     row_values.append(value.strftime('%Y-%m-%d'))
                 elif isinstance(value, bool):
                     row_values.append('true' if value else 'false')
                 elif isinstance(value, (int, float)):
-                    # Check if it's effectively an integer
                     if isinstance(value, float) and value.is_integer():
                         row_values.append(str(int(value)))
                     else:
@@ -613,9 +617,20 @@ class CSVImportService:
                 else:
                     row_values.append(str(value).strip())
 
-            # Skip completely empty rows
-            if any(cell.strip() for cell in row_values):
-                yield row_values
+            if is_header_row:
+                header_count = len(row_values)
+                is_header_row = False
+                if row_values:
+                    yield row_values
+            else:
+                # Trim data rows to match header count (ignore extra empty columns)
+                row_values = row_values[:header_count]
+                # Pad if needed
+                while len(row_values) < header_count:
+                    row_values.append('')
+                # Skip completely empty rows
+                if any(cell.strip() for cell in row_values):
+                    yield row_values
 
         wb.close()
 
