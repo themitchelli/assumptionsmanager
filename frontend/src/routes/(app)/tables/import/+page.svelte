@@ -42,7 +42,7 @@
 	$: canImport = $auth.user?.role === 'analyst' || $auth.user?.role === 'admin' || $auth.user?.role === 'super_admin';
 
 	// Validation
-	$: isFormValid = tableName.trim() !== '' && files.length > 0 && preview && preview.errors.length === 0;
+	$: isFormValid = tableName.trim() !== '' && files.length > 0 && preview && preview.validation_warnings.length === 0;
 
 	async function handleFileChange(event: CustomEvent<readonly File[]>) {
 		files = [...event.detail];
@@ -261,40 +261,40 @@
 					<Tile class="preview-section">
 						<h3 class="section-title">2. Preview</h3>
 
-						{#if preview.errors.length > 0}
+						{#if preview.validation_warnings.length > 0}
 							<InlineNotification
 								kind="error"
 								title="Validation errors"
-								subtitle="{preview.errors.length} error(s) found in the file"
+								subtitle="{preview.validation_warnings.length} error(s) found in the file"
 								lowContrast
 								hideCloseButton
 							/>
 
 							<div class="error-list">
-								{#each preview.errors.slice(0, 10) as error}
+								{#each preview.validation_warnings.slice(0, 10) as error}
 									<div class="error-item">
 										<strong>Row {error.row}, Column "{error.column}":</strong>
 										{error.message}
 									</div>
 								{/each}
-								{#if preview.errors.length > 10}
-									<p class="more-errors">... and {preview.errors.length - 10} more errors</p>
+								{#if preview.validation_warnings.length > 10}
+									<p class="more-errors">... and {preview.validation_warnings.length - 10} more errors</p>
 								{/if}
 							</div>
 						{:else}
 							<div class="preview-stats">
-								<span class="stat"><strong>{preview.columns.length}</strong> columns detected</span>
+								<span class="stat"><strong>{preview.inferred_columns.length}</strong> columns detected</span>
 								<span class="stat"><strong>{preview.row_count}</strong> rows detected</span>
 							</div>
 
 							<div class="columns-preview">
 								<h4>Detected Columns</h4>
 								<div class="column-tags">
-									{#each preview.columns as col}
+									{#each preview.inferred_columns as col}
 										<div class="column-tag">
 											<span class="column-name">{col.name}</span>
-											<Tag type={getTypeTagColor(col.inferred_type)} size="sm">
-												{getTypeAbbreviation(col.inferred_type)}
+											<Tag type={getTypeTagColor(col.type)} size="sm">
+												{getTypeAbbreviation(col.type)}
 											</Tag>
 										</div>
 									{/each}
@@ -303,7 +303,7 @@
 						{/if}
 					</Tile>
 
-					{#if preview.errors.length === 0}
+					{#if preview.validation_warnings.length === 0}
 						<Tile class="form-section">
 							<h3 class="section-title">3. Table Details</h3>
 

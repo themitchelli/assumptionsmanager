@@ -305,9 +305,9 @@ export interface ApprovalHistoryEntry {
 // Import Types
 // ============================================================
 
-export interface ImportPreviewColumn {
+export interface InferredColumn {
 	name: string;
-	inferred_type: 'text' | 'integer' | 'decimal' | 'date' | 'boolean';
+	type: 'text' | 'integer' | 'decimal' | 'date' | 'boolean';
 }
 
 export interface ImportValidationError {
@@ -319,10 +319,10 @@ export interface ImportValidationError {
 }
 
 export interface ImportPreviewResponse {
-	columns: ImportPreviewColumn[];
+	inferred_columns: InferredColumn[];
 	row_count: number;
-	preview_rows: CellData[];
-	errors: ImportValidationError[];
+	sample_rows: CellData[];
+	validation_warnings: ImportValidationError[];
 }
 
 export interface ImportResponse {
